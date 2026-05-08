@@ -873,15 +873,20 @@ function showEditPanel(el: Element): void {
 function positionEditPanel(panel: HTMLElement, el: Element): void {
   const r = el.getBoundingClientRect();
   const pr = panel.getBoundingClientRect();
+  // Always anchor below the clicked element — never flip above. If the panel
+  // would clip the viewport bottom, scoot it up just enough to stay onscreen,
+  // even if that means overlapping the element a bit.
   let top = r.bottom + 12;
+  const maxTop = window.innerHeight - pr.height - 8;
+  if (maxTop > 8 && top > maxTop) top = maxTop;
+  if (top < 8) top = 8;
+
   let left = r.left;
-  if (top + pr.height > window.innerHeight - 8) {
-    top = Math.max(8, r.top - pr.height - 12);
-  }
   if (left + pr.width > window.innerWidth - 8) {
     left = window.innerWidth - pr.width - 8;
   }
   if (left < 8) left = 8;
+
   panel.style.top = `${top}px`;
   panel.style.left = `${left}px`;
 }
