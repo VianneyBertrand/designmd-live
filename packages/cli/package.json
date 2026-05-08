@@ -1,12 +1,42 @@
 {
   "name": "designmd-live",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Live editor for DESIGN.md, wired on your real codebase",
   "type": "module",
+  "license": "MIT",
+  "author": "Vianney Bertrand",
+  "homepage": "https://github.com/vianneybertrand/designmd-live#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vianneybertrand/designmd-live.git",
+    "directory": "packages/cli"
+  },
+  "bugs": "https://github.com/vianneybertrand/designmd-live/issues",
+  "keywords": [
+    "design-tokens",
+    "design-system",
+    "design.md",
+    "tailwind",
+    "tailwindcss",
+    "design-tools",
+    "cli",
+    "live-preview",
+    "dtcg"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "bin": {
     "designmd-live": "./dist/index.js"
   },
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "node scripts/build.mjs",
     "build:tsup": "tsup",
@@ -17,6 +47,7 @@
   "dependencies": {
     "@designmd-live/core": "workspace:*",
     "@hono/node-server": "^1.13.0",
+    "chokidar": "^4.0.0",
     "citty": "^0.1.6",
     "consola": "^3.3.0",
     "hono": "^4.6.0",

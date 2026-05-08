@@ -1,5 +1,5 @@
 import yaml from 'js-yaml';
-import { DesignMdSchema, type DesignMd } from './schema.ts';
+import { type DesignMd, DesignMdSchema } from './schema.ts';
 
 const FRONT_MATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
 

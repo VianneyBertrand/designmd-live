@@ -15,7 +15,9 @@ const CATEGORY_TYPE: Record<string, FlatToken['type']> = {
   radius: 'dimension',
 };
 
-function isLeaf(node: unknown): node is { $value: string | string[]; $type?: string; $description?: string } {
+function isLeaf(
+  node: unknown,
+): node is { $value: string | string[]; $type?: string; $description?: string } {
   return typeof node === 'object' && node !== null && '$value' in node;
 }
 

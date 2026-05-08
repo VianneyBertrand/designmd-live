@@ -19,7 +19,9 @@ const FontFamilyTokenSchema = z.object({
 });
 
 const TokenGroupSchema: z.ZodType<TokenGroup> = z.lazy(() =>
-  z.record(z.union([ColorTokenSchema, DimensionTokenSchema, FontFamilyTokenSchema, TokenGroupSchema])),
+  z.record(
+    z.union([ColorTokenSchema, DimensionTokenSchema, FontFamilyTokenSchema, TokenGroupSchema]),
+  ),
 );
 
 type Token =

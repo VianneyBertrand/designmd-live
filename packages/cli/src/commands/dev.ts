@@ -20,7 +20,8 @@ export const devCommand = defineCommand({
     },
     proxy: {
       type: 'string',
-      description: 'Reverse-proxy a dev server URL and auto-inject the agent (e.g. http://localhost:3000)',
+      description:
+        'Reverse-proxy a dev server URL and auto-inject the agent (e.g. http://localhost:3000)',
     },
   },
   async run({ args }) {

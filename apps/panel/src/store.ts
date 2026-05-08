@@ -1,13 +1,13 @@
 import {
+  type DesignMd,
+  type FlatToken,
   flattenTokens,
   parseDesignMd,
   serializeDesignMd,
   setTokenAtPath,
-  type DesignMd,
-  type FlatToken,
 } from '@designmd-live/core';
 import { create } from 'zustand';
-import { broadcast } from './lib/ws.ts';
+import { broadcast, type Incoming, onWsMessage } from './lib/ws.ts';
 
 interface DesignState {
   parsed: DesignMd | null;
@@ -15,10 +15,12 @@ interface DesignState {
   status: 'idle' | 'loading' | 'ready' | 'error';
   saveStatus: 'idle' | 'saving' | 'saved' | 'error';
   dirty: boolean;
+  externalChange: boolean;
   error: string | null;
   load: () => Promise<void>;
   setTokenValue: (path: string[], value: string | string[]) => void;
   save: () => Promise<void>;
+  dismissExternalChange: () => void;
 }
 
 export const useDesign = create<DesignState>((set, get) => ({
@@ -27,7 +29,10 @@ export const useDesign = create<DesignState>((set, get) => ({
   status: 'idle',
   saveStatus: 'idle',
   dirty: false,
+  externalChange: false,
   error: null,
+
+  dismissExternalChange: () => set({ externalChange: false }),
 
   load: async () => {
     set({ status: 'loading', error: null });
@@ -82,3 +87,14 @@ export const useDesign = create<DesignState>((set, get) => ({
     }
   },
 }));
+
+// React to external file edits surfaced by the CLI watcher.
+onWsMessage((msg: Incoming) => {
+  if (msg.type !== 'snapshot' || msg.source !== 'watcher') return;
+  const state = useDesign.getState();
+  if (state.dirty) {
+    useDesign.setState({ externalChange: true });
+    return;
+  }
+  void state.load();
+});

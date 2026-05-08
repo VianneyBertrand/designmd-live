@@ -2,9 +2,10 @@ import { existsSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { flattenTokens, parseDesignMd } from '@designmd-live/core';
 import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
-import { parseDesignMd } from '@designmd-live/core';
+import chokidar from 'chokidar';
 import { consola } from 'consola';
 import { Hono } from 'hono';
 import { WebSocketServer } from 'ws';
@@ -47,10 +48,12 @@ export async function startServer({ port, cwd, proxy }: ServerOptions): Promise<
     }
   });
 
+  let lastWriteAt = 0;
   app.post('/api/design-md', async (c) => {
     const path = join(cwd, 'DESIGN.md');
     const { raw } = await c.req.json<{ raw: string }>();
     parseDesignMd(raw);
+    lastWriteAt = Date.now();
     await writeFile(path, raw, 'utf8');
     return c.json({ ok: true });
   });
@@ -87,7 +90,7 @@ export async function startServer({ port, cwd, proxy }: ServerOptions): Promise<
     app.all('*', proxyMiddleware({ target: proxyTarget, panelPrefix: PANEL_PREFIX }));
   } else if (HAS_PANEL) {
     // No proxy: root serves the panel directly (no prefix needed).
-    app.get('/', (c) => c.redirect(PANEL_PREFIX + '/'));
+    app.get('/', (c) => c.redirect(`${PANEL_PREFIX}/`));
   } else {
     app.get('/', (c) =>
       c.text(
@@ -116,6 +119,33 @@ export async function startServer({ port, cwd, proxy }: ServerOptions): Promise<
       wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
     } else {
       socket.destroy();
+    }
+  });
+
+  // ── File watcher: external edits propagate to all clients ──────────────
+  const designMdPath = join(cwd, 'DESIGN.md');
+  const watcher = chokidar.watch(designMdPath, {
+    ignoreInitial: true,
+    awaitWriteFinish: { stabilityThreshold: 50, pollInterval: 25 },
+  });
+
+  watcher.on('change', async () => {
+    // Suppress the echo for ~750ms after our own POST write.
+    if (Date.now() - lastWriteAt < 750) return;
+    try {
+      const raw = await readFile(designMdPath, 'utf8');
+      const parsed = parseDesignMd(raw);
+      const tokens = flattenTokens(parsed.tokens).map((t) => ({
+        path: t.path,
+        value: t.value,
+      }));
+      const msg = JSON.stringify({ type: 'snapshot', tokens, source: 'watcher' });
+      for (const client of wss.clients) {
+        if (client.readyState === client.OPEN) client.send(msg);
+      }
+      consola.info('DESIGN.md changed externally — pushed snapshot to clients');
+    } catch (err) {
+      consola.warn('Failed to reparse DESIGN.md on change:', (err as Error).message);
     }
   });
 

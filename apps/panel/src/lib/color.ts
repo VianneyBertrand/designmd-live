@@ -23,7 +23,10 @@ function rgbStringToHex(rgb: string): string | null {
   if (!parts || parts.length < 3) return null;
   const [r, g, b] = parts;
   if (r === undefined || g === undefined || b === undefined) return null;
-  const hex = (n: number) => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, '0');
+  const hex = (n: number) =>
+    Math.max(0, Math.min(255, Math.round(n)))
+      .toString(16)
+      .padStart(2, '0');
   return `#${hex(r)}${hex(g)}${hex(b)}`;
 }
 

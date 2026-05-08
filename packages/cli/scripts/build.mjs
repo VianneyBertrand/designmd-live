@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-import { cp, mkdir, rm } from 'node:fs/promises';
+import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
+import { cp, mkdir, rm } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { spawn } from 'node:child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = resolve(__dirname, '..');
@@ -28,12 +28,21 @@ async function main() {
 
   if (!existsSync(PANEL_DIST)) {
     console.warn(`! No panel dist found at ${PANEL_DIST}`);
-    console.warn('  Run `pnpm --filter @designmd-live/panel build` first, or `pnpm build` from the repo root.');
+    console.warn(
+      '  Run `pnpm --filter @designmd-live/panel build` first, or `pnpm build` from the repo root.',
+    );
     process.exit(1);
   }
 
   console.log('▸ Copying panel/dist → cli/dist/panel');
   await cp(PANEL_DIST, TARGET_PANEL, { recursive: true });
+
+  // Mirror the root LICENSE into the package so npm picks it up on publish.
+  const rootLicense = resolve(REPO_ROOT, 'LICENSE');
+  if (existsSync(rootLicense)) {
+    await cp(rootLicense, join(CLI_ROOT, 'LICENSE'));
+    console.log('▸ Synced LICENSE');
+  }
 
   console.log('✓ CLI build done');
 }

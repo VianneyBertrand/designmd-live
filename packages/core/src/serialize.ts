@@ -37,8 +37,7 @@ function setIn(
   }
 
   const next = obj[head];
-  const child =
-    typeof next === 'object' && next !== null ? (next as Record<string, unknown>) : {};
+  const child = typeof next === 'object' && next !== null ? (next as Record<string, unknown>) : {};
   return { ...obj, [head]: setIn(child, rest, value) };
 }
 

@@ -1,11 +1,22 @@
 import { useEffect } from 'react';
+import { ConnectionDot } from './components/connection-dot.tsx';
 import { PreviewFrame } from './components/preview-frame.tsx';
 import { TokenTree } from './components/token-tree.tsx';
 import { startWs } from './lib/ws.ts';
 import { useDesign } from './store.ts';
 
 export function App() {
-  const { tokens, status, saveStatus, dirty, error, load, save } = useDesign();
+  const {
+    tokens,
+    status,
+    saveStatus,
+    dirty,
+    externalChange,
+    error,
+    load,
+    save,
+    dismissExternalChange,
+  } = useDesign();
 
   useEffect(() => {
     startWs();
@@ -21,8 +32,15 @@ export function App() {
             Tweak your DESIGN.md, see your real app react.
           </p>
         </div>
-        <SaveControls dirty={dirty} saveStatus={saveStatus} onSave={save} />
+        <div className="flex items-center gap-4">
+          <ConnectionDot />
+          <SaveControls dirty={dirty} saveStatus={saveStatus} onSave={save} />
+        </div>
       </header>
+
+      {externalChange ? (
+        <ExternalChangeBanner onReload={() => void load()} onDismiss={dismissExternalChange} />
+      ) : null}
 
       <div className="flex flex-1 overflow-hidden">
         <aside className="flex w-[420px] shrink-0 flex-col overflow-y-auto border-r border-border px-6 py-6">
@@ -49,6 +67,38 @@ export function App() {
         </div>
       </div>
     </main>
+  );
+}
+
+function ExternalChangeBanner({
+  onReload,
+  onDismiss,
+}: {
+  onReload: () => void;
+  onDismiss: () => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 border-b border-amber-500/30 bg-amber-500/10 px-6 py-2 text-xs">
+      <span className="text-foreground">
+        DESIGN.md was changed on disk. You have unsaved edits in the panel.
+      </span>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onReload}
+          className="rounded-md border border-border bg-background px-2.5 py-1 font-medium text-foreground transition hover:bg-muted"
+        >
+          Reload from disk
+        </button>
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="rounded-md px-2.5 py-1 text-muted-foreground transition hover:text-foreground"
+        >
+          Dismiss
+        </button>
+      </div>
+    </div>
   );
 }
 

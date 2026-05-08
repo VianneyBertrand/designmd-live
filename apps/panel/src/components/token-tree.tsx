@@ -40,7 +40,9 @@ export function TokenTree({ tokens }: Props) {
 function groupByCategory(tokens: FlatToken[]): Partial<Record<FlatToken['category'], FlatToken[]>> {
   const result: Partial<Record<FlatToken['category'], FlatToken[]>> = {};
   for (const token of tokens) {
-    (result[token.category] ??= []).push(token);
+    const bucket = result[token.category] ?? [];
+    bucket.push(token);
+    result[token.category] = bucket;
   }
   return result;
 }
