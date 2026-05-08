@@ -544,6 +544,30 @@ function ensureEditStyles(): void {
       margin-bottom: 6px; line-height: 1.2;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
+
+    /* Color swatch grid */
+    #${PANEL_ID} .swatch-grid {
+      display: flex; flex-wrap: wrap; gap: 5px;
+      margin-top: 8px;
+    }
+    #${PANEL_ID} .swatch-mini {
+      width: 22px; height: 22px;
+      border-radius: 5px;
+      border: 1px solid ${SURFACE_3};
+      cursor: pointer;
+      padding: 0;
+      background-clip: padding-box;
+      transition: transform 100ms;
+      outline: none;
+      flex-shrink: 0;
+    }
+    #${PANEL_ID} .swatch-mini:hover { transform: scale(1.10); border-color: ${INK_3}; }
+    #${PANEL_ID} .swatch-mini.is-current {
+      box-shadow: 0 0 0 2px ${SURFACE}, 0 0 0 4px ${ACCENT};
+    }
+    #${PANEL_ID} .swatch-mini:focus-visible {
+      box-shadow: 0 0 0 2px ${SURFACE}, 0 0 0 4px ${ACCENT};
+    }
   `;
   document.head.appendChild(style);
 }
@@ -872,11 +896,6 @@ function buildMiniStepper(maybeProp: PropEntry | undefined): HTMLElement {
   prev.addEventListener('click', () => applyIndex(state.index - 1));
   next.addEventListener('click', () => applyIndex(state.index + 1));
   value.addEventListener('focus', () => value.select());
-  value.addEventListener('click', (e) => {
-    if (state.candidates.length === 0 || !prop.tokens[0]) return;
-    e.stopPropagation();
-    openTokenDropdown(value, state, applyIndex);
-  });
   value.addEventListener('keydown', (e) => {
     if (e.key === 'ArrowLeft') {
       e.preventDefault();
@@ -1004,12 +1023,58 @@ function buildColorBlock(prop: PropEntry): HTMLElement {
   colorInput.addEventListener('input', () => {
     swatch.style.background = colorInput.value;
     value.textContent = colorInput.value;
+    swatchRefs.forEach((s) => s.classList.remove('is-current'));
     if (prop.tokens.length) emitTokenUpdate(prop.tokens[0]!.path, colorInput.value);
   });
 
   stepper.appendChild(name);
   stepper.appendChild(arrows);
   block.appendChild(stepper);
+
+  // Swatch grid — every color token visible at a glance.
+  const grid = createEl('div', 'swatch-grid');
+  const swatchRefs: HTMLButtonElement[] = [];
+  state.candidates.forEach((c, i) => {
+    if (typeof c.value !== 'string') return;
+    const mini = createEl('button', 'swatch-mini');
+    mini.type = 'button';
+    mini.style.background = c.value;
+    const tokenName = formatTokenName(c);
+    mini.title = `${tokenName} · ${c.value}`;
+    mini.setAttribute('aria-label', tokenName);
+    if (i === state.index) mini.classList.add('is-current');
+    mini.addEventListener('click', (e) => {
+      e.stopPropagation();
+      applyIndex(i);
+    });
+    swatchRefs.push(mini);
+    grid.appendChild(mini);
+  });
+  block.appendChild(grid);
+
+  // Wire grid into applyIndex by overriding refresh to keep current swatch in sync.
+  const originalApply = applyIndex;
+  function applyAndSync(idx: number) {
+    originalApply(idx);
+    swatchRefs.forEach((s, i) => s.classList.toggle('is-current', i === idx));
+  }
+  // Reassign listeners that reference applyIndex
+  prev.removeEventListener('click', () => {});
+  next.removeEventListener('click', () => {});
+  // Easiest: replace handlers
+  prev.onclick = () => applyAndSync(state.index - 1);
+  next.onclick = () => applyAndSync(state.index + 1);
+  name.onclick = (e) => {
+    if (state.candidates.length === 0 || !prop.tokens[0]) return;
+    e.stopPropagation();
+    openTokenDropdown(name, state, applyAndSync);
+  };
+  swatchRefs.forEach((m, i) => {
+    m.onclick = (e) => {
+      e.stopPropagation();
+      applyAndSync(i);
+    };
+  });
 
   refresh();
   return block;
