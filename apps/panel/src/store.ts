@@ -127,6 +127,21 @@ onWsMessage((msg: Incoming) => {
       const el = document.querySelector(`[data-token="${cssEscape(first)}"]`);
       el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     });
+    return;
+  }
+  if (msg.type === 'token-update') {
+    // Edits made from the in-iframe popup. Update local parsed state so the
+    // panel reflects the change and Save persists it.
+    const state = useDesign.getState();
+    if (!state.parsed) return;
+    const nextTokens = setTokenAtPath(state.parsed.tokens, msg.path, msg.value);
+    const nextParsed: DesignMd = { ...state.parsed, tokens: nextTokens };
+    useDesign.setState({
+      parsed: nextParsed,
+      tokens: flattenTokens(nextTokens),
+      dirty: true,
+      saveStatus: 'idle',
+    });
   }
 });
 

@@ -41,7 +41,7 @@
     "build": "node scripts/build.mjs",
     "build:tsup": "tsup",
     "dev": "tsup --watch",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p src/client/tsconfig.json --noEmit",
     "start": "node ./dist/index.js"
   },
   "dependencies": {

@@ -9,8 +9,10 @@ import chokidar from 'chokidar';
 import { consola } from 'consola';
 import { Hono } from 'hono';
 import { WebSocketServer } from 'ws';
-import { AGENT_SCRIPT } from './agent.ts';
+import { getAgentScript } from './agent.ts';
 import { proxyMiddleware } from './proxy.ts';
+
+const AGENT_SCRIPT = getAgentScript();
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PANEL_DIR = resolve(__dirname, 'panel');
