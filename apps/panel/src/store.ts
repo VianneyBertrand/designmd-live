@@ -7,6 +7,7 @@ import {
   type FlatToken,
 } from '@designmd-live/core';
 import { create } from 'zustand';
+import { broadcast } from './lib/ws.ts';
 
 interface DesignState {
   parsed: DesignMd | null;
@@ -37,6 +38,10 @@ export const useDesign = create<DesignState>((set, get) => ({
       const parsed = parseDesignMd(raw);
       const tokens = flattenTokens(parsed.tokens);
       set({ parsed, tokens, status: 'ready', dirty: false, saveStatus: 'idle' });
+      broadcast({
+        type: 'snapshot',
+        tokens: tokens.map((t) => ({ path: t.path, value: t.value })),
+      });
     } catch (err) {
       set({ status: 'error', error: (err as Error).message });
     }
@@ -53,6 +58,7 @@ export const useDesign = create<DesignState>((set, get) => ({
       dirty: true,
       saveStatus: 'idle',
     });
+    broadcast({ type: 'token-update', path, value });
   },
 
   save: async () => {

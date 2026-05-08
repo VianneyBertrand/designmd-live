@@ -84,11 +84,12 @@ designmd-live/
 - `apps/panel` : Vite + React 19 + Tailwind v4 + shadcn
 - Affichage des tokens lus depuis un fichier mocké
 
-### v0.2 (jour 3-4) — édition live
+### v0.2 (jour 3-4) — édition live ✅
 - `packages/cli` : `npx designmd-live dev`
-- Hono server local sur :3001
-- WebSocket pour push tokens vers projet cible
-- Script client injecté dans le projet cible qui écoute le WS et update `:root` CSS vars
+- Hono server local sur :3030 (port choisi pour cohabiter avec Next.js dev)
+- WebSocket sur même port (`/ws`) pour push tokens vers projet cible
+- Agent script servi sur `/client.js`, à injecter dans le `<head>` du projet cible en dev
+- Panel : iframe du projet cible + token edits broadcast en live
 
 ### v0.3 (jour 5) — multi-skin switching
 - Dropdown de DESIGN.md (locaux + URL distantes)

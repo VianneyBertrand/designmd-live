@@ -1,7 +1,7 @@
 ---
 color:
   background:
-    $value: oklch(1 0 0)
+    $value: '#b15959'
     $type: color
     $description: Default page background
   foreground:
@@ -9,14 +9,14 @@ color:
     $type: color
     $description: Default text color
   brand:
-    50:
+    '50':
       $value: oklch(0.97 0.02 250)
       $type: color
-    500:
+    '500':
       $value: oklch(0.65 0.18 250)
       $type: color
       $description: Primary brand color
-    900:
+    '900':
       $value: oklch(0.25 0.12 250)
       $type: color
   muted:
@@ -25,7 +25,6 @@ color:
   border:
     $value: oklch(0.92 0 0)
     $type: color
-
 typography:
   family:
     sans:
@@ -40,24 +39,22 @@ typography:
         - ui-monospace
         - monospace
       $type: fontFamily
-
 spacing:
-  1:
+  '1':
     $value: 0.25rem
     $type: dimension
-  2:
+  '2':
     $value: 0.5rem
     $type: dimension
-  4:
+  '4':
     $value: 1rem
     $type: dimension
-  6:
+  '6':
     $value: 1.5rem
     $type: dimension
-  8:
+  '8':
     $value: 2rem
     $type: dimension
-
 radius:
   sm:
     $value: 0.25rem

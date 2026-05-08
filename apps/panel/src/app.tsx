@@ -1,42 +1,53 @@
 import { useEffect } from 'react';
+import { PreviewFrame } from './components/preview-frame.tsx';
 import { TokenTree } from './components/token-tree.tsx';
+import { startWs } from './lib/ws.ts';
 import { useDesign } from './store.ts';
 
 export function App() {
   const { tokens, status, saveStatus, dirty, error, load, save } = useDesign();
 
   useEffect(() => {
+    startWs();
     load();
   }, [load]);
 
   return (
-    <main className="min-h-dvh bg-background text-foreground">
-      <header className="sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-border bg-background/95 px-6 py-4 backdrop-blur">
-        <div>
-          <h1 className="text-lg font-semibold tracking-tight">designmd-live</h1>
-          <p className="text-sm text-muted-foreground">
-            Tweak your DESIGN.md, see your real app react. Live.
+    <main className="flex h-dvh flex-col bg-background text-foreground">
+      <header className="flex items-center justify-between gap-4 border-b border-border bg-background/95 px-6 py-3 backdrop-blur">
+        <div className="flex items-baseline gap-3">
+          <h1 className="text-sm font-semibold tracking-tight">designmd-live</h1>
+          <p className="text-xs text-muted-foreground">
+            Tweak your DESIGN.md, see your real app react.
           </p>
         </div>
         <SaveControls dirty={dirty} saveStatus={saveStatus} onSave={save} />
       </header>
 
-      <section className="mx-auto max-w-3xl px-6 py-8">
-        {status === 'loading' && <p className="text-sm text-muted-foreground">Loading DESIGN.md…</p>}
+      <div className="flex flex-1 overflow-hidden">
+        <aside className="flex w-[420px] shrink-0 flex-col overflow-y-auto border-r border-border px-6 py-6">
+          {status === 'loading' && (
+            <p className="text-sm text-muted-foreground">Loading DESIGN.md…</p>
+          )}
 
-        {status === 'error' && (
-          <div className="rounded-md border border-border bg-muted px-4 py-3">
-            <p className="text-sm text-foreground">Could not load DESIGN.md</p>
-            <p className="mt-1 font-mono text-xs text-muted-foreground">{error}</p>
-          </div>
-        )}
+          {status === 'error' && (
+            <div className="rounded-md border border-border bg-muted px-4 py-3">
+              <p className="text-sm text-foreground">Could not load DESIGN.md</p>
+              <p className="mt-1 font-mono text-xs text-muted-foreground">{error}</p>
+            </div>
+          )}
 
-        {status === 'ready' && tokens.length > 0 && <TokenTree tokens={tokens} />}
+          {status === 'ready' && tokens.length > 0 && <TokenTree tokens={tokens} />}
 
-        {status === 'ready' && tokens.length === 0 && (
-          <p className="text-sm text-muted-foreground">No tokens found in DESIGN.md.</p>
-        )}
-      </section>
+          {status === 'ready' && tokens.length === 0 && (
+            <p className="text-sm text-muted-foreground">No tokens found in DESIGN.md.</p>
+          )}
+        </aside>
+
+        <div className="flex-1 overflow-hidden">
+          <PreviewFrame />
+        </div>
+      </div>
     </main>
   );
 }
