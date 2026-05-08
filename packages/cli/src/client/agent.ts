@@ -16,12 +16,11 @@ type PropKind =
   | 'letterSpacing'
   | 'shadow'
   | 'opacity'
-  | 'duration'
-  | 'unknown';
+  | 'duration';
 
 interface PropEntry {
-  prop: string; // CSS property name (e.g. 'padding-top')
-  value: string; // resolved computed value
+  prop: string;
+  value: string;
   tokens: CachedToken[];
   hint: PropKind;
 }
@@ -38,12 +37,12 @@ const OVERLAY_ID = 'designmd-live-overlay';
 const LABEL_ID = 'designmd-live-label';
 const PANEL_ID = 'designmd-live-edit-panel';
 const STYLES_ID = 'designmd-live-edit-styles';
-const DROPDOWN_ID = 'designmd-live-dropdown';
 
 const ACCENT = 'oklch(0.82 0.16 75)';
 const SURFACE = 'oklch(0.13 0.005 250)';
-const SURFACE_2 = 'oklch(0.17 0.005 250)';
-const BORDER = 'oklch(0.24 0.005 250)';
+const SURFACE_2 = 'oklch(0.18 0.005 250)';
+const SURFACE_3 = 'oklch(0.22 0.005 250)';
+const BORDER = 'oklch(0.26 0.005 250)';
 const INK_1 = 'oklch(0.96 0 0)';
 const INK_2 = 'oklch(0.74 0 0)';
 const INK_3 = 'oklch(0.55 0 0)';
@@ -125,8 +124,6 @@ function applySnapshot(snapshot: { path: string[]; value: TokenValue }[]): void 
     tokens.push({ path: t.path, value: t.value });
   }
   render();
-  // If the edit panel is open, refresh it (token names/values may have changed)
-  if (editPanel && hoverEl) showEditPanel(hoverEl);
 }
 
 // ── Inspector matching ─────────────────────────────────────────────────────
@@ -170,7 +167,6 @@ function tokenMatchesValue(token: CachedToken, valueStr: string): boolean {
   const tv = String(token.value).trim();
   const v = valueStr.trim();
   if (tv === v) return true;
-  // Unitless line-height tokens
   const numericTv = Number(tv);
   if (Number.isFinite(numericTv) && /^-?\d+(\.\d+)?$/.test(tv)) {
     const vpx = toPx(v);
@@ -195,9 +191,8 @@ function inspectElement(el: Element): PropEntry[] {
   const cs = getComputedStyle(el);
   const props: PropEntry[] = [];
   function add(prop: string, value: string, hint: PropKind) {
-    if (!value || value === 'normal' || value === '0px' || value === 'none') return;
-    const matches = tokensForValue(value, hint);
-    props.push({ prop, value, tokens: matches, hint });
+    if (!value || value === 'normal' || value === 'none') return;
+    props.push({ prop, value, tokens: tokensForValue(value, hint), hint });
   }
   add('font-size', cs.fontSize, 'fontSize');
   add('font-weight', cs.fontWeight, 'fontWeight');
@@ -214,8 +209,6 @@ function inspectElement(el: Element): PropEntry[] {
   add('margin-bottom', cs.marginBottom, 'spacing');
   add('margin-left', cs.marginLeft, 'spacing');
   add('gap', cs.gap, 'spacing');
-  add('row-gap', cs.rowGap, 'spacing');
-  add('column-gap', cs.columnGap, 'spacing');
   add('border-radius', cs.borderTopLeftRadius, 'radius');
   add('box-shadow', cs.boxShadow, 'shadow');
   return props;
@@ -248,13 +241,13 @@ function ensureOverlay(): { box: HTMLElement; label: HTMLElement } {
       zIndex: '2147483647',
       background: SURFACE,
       color: INK_1,
-      padding: '6px 8px',
+      padding: '8px 10px',
       borderRadius: '6px',
-      font: '11px ui-monospace, "SF Mono", "JetBrains Mono", monospace',
+      font: '12px ui-monospace, "SF Mono", "JetBrains Mono", monospace',
       lineHeight: '1.4',
       whiteSpace: 'pre',
-      boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
-      maxWidth: '360px',
+      boxShadow: '0 4px 16px rgba(0,0,0,0.30)',
+      maxWidth: '420px',
       border: `1px solid ${BORDER}`,
     } as CSSStyleDeclaration);
     document.body.appendChild(label);
@@ -298,159 +291,220 @@ function placeOverlay(el: Element): void {
   label.style.top = `${ly}px`;
 }
 
-// ── Edit panel ─────────────────────────────────────────────────────────────
+// ── Edit panel styles ──────────────────────────────────────────────────────
 function ensureEditStyles(): void {
   if (document.getElementById(STYLES_ID)) return;
   const style = document.createElement('style');
   style.id = STYLES_ID;
   style.textContent = `
-    #${PANEL_ID}, #${PANEL_ID} *, #${DROPDOWN_ID}, #${DROPDOWN_ID} * {
+    #${PANEL_ID}, #${PANEL_ID} * {
       box-sizing: border-box;
       font-family: ui-monospace, "SF Mono", "JetBrains Mono", monospace;
+      -webkit-font-smoothing: antialiased;
     }
     #${PANEL_ID} {
       position: fixed;
-      width: 380px;
-      max-height: 70vh;
+      width: 480px;
+      max-height: 80vh;
       overflow-y: auto;
       background: ${SURFACE};
       color: ${INK_1};
       border: 1px solid ${BORDER};
-      border-radius: 10px;
-      box-shadow: 0 12px 32px -8px rgba(0,0,0,.45), 0 1px 0 ${BORDER};
-      padding: 14px 16px;
+      border-radius: 12px;
+      box-shadow: 0 16px 40px -8px rgba(0,0,0,.50), 0 1px 0 ${BORDER};
+      padding: 16px 18px;
       z-index: 2147483647;
-      font-size: 11px;
+      font-size: 13px;
       line-height: 1.5;
     }
-    #${PANEL_ID} .dml-header {
+    #${PANEL_ID} .hdr {
       display: flex; align-items: flex-start; justify-content: space-between;
-      gap: 12px;
+      gap: 12px; margin-bottom: 6px;
     }
-    #${PANEL_ID} .dml-tag { font-size: 12px; font-weight: 500; color: ${INK_1}; }
-    #${PANEL_ID} .dml-subhead { font-size: 11px; color: ${INK_3}; margin-top: 2px; }
-    #${PANEL_ID} .dml-close {
+    #${PANEL_ID} .hdr-tag { font-size: 14px; font-weight: 500; color: ${INK_1}; }
+    #${PANEL_ID} .hdr-sub { font-size: 12px; color: ${INK_3}; margin-top: 3px; }
+    #${PANEL_ID} .hdr-close {
       background: none; border: 0; cursor: pointer;
-      color: ${INK_3}; font-size: 13px; line-height: 1; padding: 4px;
-      border-radius: 4px;
+      color: ${INK_3}; font-size: 14px; line-height: 1;
+      width: 28px; height: 28px; border-radius: 6px;
+      display: inline-flex; align-items: center; justify-content: center;
     }
-    #${PANEL_ID} .dml-close:hover { color: ${INK_1}; background: ${SURFACE_2}; }
-    #${PANEL_ID} .dml-divider {
-      height: 1px; background: ${BORDER}; margin: 12px 0;
-    }
-    #${PANEL_ID} .dml-group { margin-bottom: 14px; }
-    #${PANEL_ID} .dml-group:last-child { margin-bottom: 0; }
-    #${PANEL_ID} .dml-group-label {
-      font-size: 10px; font-weight: 600; letter-spacing: 0.08em;
+    #${PANEL_ID} .hdr-close:hover { color: ${INK_1}; background: ${SURFACE_2}; }
+    #${PANEL_ID} .hdr-close:focus-visible { outline: 2px solid ${ACCENT}; outline-offset: 1px; }
+    #${PANEL_ID} .divider { height: 1px; background: ${BORDER}; margin: 14px 0; }
+
+    /* group */
+    #${PANEL_ID} .grp { margin-bottom: 16px; }
+    #${PANEL_ID} .grp:last-child { margin-bottom: 0; }
+    #${PANEL_ID} .grp-label {
+      font-size: 11px; font-weight: 600; letter-spacing: 0.10em;
       text-transform: uppercase; color: ${INK_3};
-      margin-bottom: 6px;
+      margin-bottom: 10px;
     }
-    #${PANEL_ID} .dml-row {
+
+    /* slider row */
+    #${PANEL_ID} .srow {
       display: grid;
-      grid-template-columns: 16px minmax(96px, max-content) 8px 1fr 110px;
-      align-items: center; height: 28px;
-      padding: 0 6px;
-      border-radius: 4px;
-      margin: 0 -6px;
-      column-gap: 6px;
+      grid-template-columns: 80px 1fr 110px 60px;
+      align-items: center; gap: 12px;
+      padding: 4px 0;
+      min-height: 36px;
     }
-    #${PANEL_ID} .dml-row:hover { background: ${SURFACE_2}; }
-    #${PANEL_ID} .dml-prop { color: ${INK_2}; }
-    #${PANEL_ID} .dml-dot { color: ${INK_3}; text-align: center; }
-    #${PANEL_ID} .dml-chip {
-      color: ${INK_2}; cursor: pointer; user-select: none;
+    #${PANEL_ID} .srow-label { color: ${INK_2}; font-size: 13px; }
+    #${PANEL_ID} .srow-chip {
+      color: ${INK_2}; font-size: 12px; cursor: pointer;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      background: ${SURFACE_2}; padding: 4px 8px; border-radius: 4px;
+      text-align: center;
     }
-    #${PANEL_ID} .dml-chip:hover {
-      color: ${INK_1};
-      text-decoration: underline; text-underline-offset: 3px;
-      text-decoration-color: ${ACCENT};
-    }
-    #${PANEL_ID} .dml-chip.is-empty { color: ${INK_3}; cursor: default; pointer-events: none; }
-    #${PANEL_ID} .dml-value-cell {
-      display: flex; align-items: center; gap: 4px; justify-content: flex-end;
-      min-width: 0;
-    }
-    #${PANEL_ID} .dml-input {
+    #${PANEL_ID} .srow-chip:hover { color: ${INK_1}; background: ${SURFACE_3}; }
+    #${PANEL_ID} .srow-chip.is-empty { color: ${INK_3}; cursor: default; pointer-events: none; }
+    #${PANEL_ID} .srow-value {
       background: transparent; border: 1px solid transparent; outline: none;
-      color: ${INK_1}; padding: 2px 6px; font: inherit;
-      border-radius: 4px; text-align: right; min-width: 0; flex: 1;
+      color: ${INK_1}; font: inherit; font-size: 13px;
+      padding: 4px 6px; border-radius: 4px; text-align: right;
+      width: 100%; min-width: 0;
     }
-    #${PANEL_ID} .dml-input.is-readonly {
-      pointer-events: none; color: ${INK_3};
+    #${PANEL_ID} .srow-value:hover { background: ${SURFACE_2}; }
+    #${PANEL_ID} .srow-value:focus { background: ${SURFACE_2}; border-color: ${ACCENT}; }
+
+    /* slider */
+    #${PANEL_ID} .slider {
+      -webkit-appearance: none; appearance: none;
+      width: 100%; height: 28px;
+      background: transparent; outline: none; cursor: pointer; padding: 0;
     }
-    #${PANEL_ID} .dml-input:hover { background: ${SURFACE_2}; }
-    #${PANEL_ID} .dml-input:focus { background: ${SURFACE_2}; border-color: ${ACCENT}; }
-    #${PANEL_ID} .dml-chevron {
-      background: none; border: 0; cursor: pointer; color: ${INK_3};
-      padding: 0 4px; font-size: 9px; line-height: 1; user-select: none;
-      flex-shrink: 0;
+    #${PANEL_ID} .slider::-webkit-slider-runnable-track {
+      height: 4px; background: ${SURFACE_3}; border-radius: 2px;
     }
-    #${PANEL_ID} .dml-chevron:hover { color: ${ACCENT}; }
-    #${PANEL_ID} .dml-chevron.is-disabled { visibility: hidden; }
-    #${PANEL_ID} .dml-swatch {
+    #${PANEL_ID} .slider::-moz-range-track {
+      height: 4px; background: ${SURFACE_3}; border-radius: 2px;
+    }
+    #${PANEL_ID} .slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px; height: 16px; border-radius: 50%;
+      background: ${INK_1};
+      margin-top: -6px;
+      border: 2px solid ${SURFACE};
+      box-shadow: 0 0 0 1px ${INK_3};
+      cursor: grab;
+    }
+    #${PANEL_ID} .slider::-moz-range-thumb {
+      width: 16px; height: 16px; border-radius: 50%;
+      background: ${INK_1};
+      border: 2px solid ${SURFACE};
+      box-shadow: 0 0 0 1px ${INK_3};
+      cursor: grab;
+    }
+    #${PANEL_ID} .slider:hover::-webkit-slider-thumb {
+      background: ${ACCENT}; box-shadow: 0 0 0 1px ${ACCENT};
+    }
+    #${PANEL_ID} .slider:hover::-moz-range-thumb {
+      background: ${ACCENT}; box-shadow: 0 0 0 1px ${ACCENT};
+    }
+    #${PANEL_ID} .slider:focus-visible::-webkit-slider-thumb {
+      box-shadow: 0 0 0 2px ${ACCENT};
+    }
+    #${PANEL_ID} .slider:focus-visible::-moz-range-thumb {
+      box-shadow: 0 0 0 2px ${ACCENT};
+    }
+    #${PANEL_ID} .slider-stops {
+      display: flex; justify-content: space-between;
+      padding: 0 6px; margin-top: -2px; pointer-events: none;
+      font-size: 9px; color: ${INK_3}; letter-spacing: 0.04em;
+    }
+    #${PANEL_ID} .slider-stop {
+      width: 1px; height: 4px; background: ${SURFACE_3};
+    }
+
+    /* spacing matrix */
+    #${PANEL_ID} .matrices {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+    }
+    #${PANEL_ID} .matrix {
+      background: ${SURFACE_2};
+      border: 1px solid ${BORDER};
+      border-radius: 8px;
+      padding: 10px;
+    }
+    #${PANEL_ID} .matrix-title {
+      font-size: 11px; font-weight: 600; letter-spacing: 0.08em;
+      text-transform: uppercase; color: ${INK_3};
+      text-align: center; margin-bottom: 6px;
+    }
+    #${PANEL_ID} .matrix-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      grid-template-rows: 30px 30px 30px;
+      gap: 4px;
+      align-items: center; justify-items: center;
+    }
+    #${PANEL_ID} .matrix-cell {
+      background: ${SURFACE_3};
+      border: 1px solid transparent;
+      border-radius: 4px;
+      color: ${INK_1};
+      font: inherit; font-size: 12px;
+      width: 56px; height: 28px;
+      text-align: center; outline: none;
+    }
+    #${PANEL_ID} .matrix-cell:hover { border-color: ${BORDER}; }
+    #${PANEL_ID} .matrix-cell:focus { border-color: ${ACCENT}; background: ${SURFACE_2}; }
+    #${PANEL_ID} .matrix-cell.is-zero { color: ${INK_3}; }
+    #${PANEL_ID} .matrix-center {
+      width: 56px; height: 28px;
+      border: 1px dashed ${BORDER}; border-radius: 4px;
+      pointer-events: none;
+    }
+
+    /* color row */
+    #${PANEL_ID} .crow {
+      display: grid;
+      grid-template-columns: 24px 80px 1fr 110px;
+      align-items: center; gap: 12px;
+      padding: 4px 0;
+      min-height: 36px;
+    }
+    #${PANEL_ID} .crow-swatch {
       position: relative;
-      width: 12px; height: 12px; border-radius: 3px;
-      border: 1px solid oklch(0.32 0 0); cursor: pointer;
-      flex-shrink: 0;
-      transition: transform 120ms;
-      justify-self: center;
+      width: 24px; height: 24px; border-radius: 5px;
+      border: 1px solid ${BORDER};
+      cursor: pointer;
+      transition: transform 100ms;
     }
-    #${PANEL_ID} .dml-swatch:hover { transform: scale(1.10); }
-    #${PANEL_ID} .dml-swatch input[type="color"] {
-      position: absolute; inset: 0; opacity: 0; cursor: pointer; border: 0; padding: 0;
+    #${PANEL_ID} .crow-swatch:hover { transform: scale(1.05); }
+    #${PANEL_ID} .crow-swatch input[type="color"] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer; border: 0;
       width: 100%; height: 100%;
     }
-    #${PANEL_ID} .dml-empty {
-      color: ${INK_3}; padding: 8px 0; font-size: 11px;
+    #${PANEL_ID} .crow-label { color: ${INK_2}; font-size: 13px; }
+    #${PANEL_ID} .crow-value {
+      color: ${INK_1}; font-size: 12px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
-    #${DROPDOWN_ID} {
-      position: fixed;
-      background: ${SURFACE};
-      border: 1px solid ${BORDER};
-      border-radius: 6px;
-      box-shadow: 0 8px 24px rgba(0,0,0,.40);
-      padding: 4px;
-      z-index: 2147483647;
-      font-size: 11px;
-      min-width: 220px;
-      max-height: 240px;
-      overflow-y: auto;
+    #${PANEL_ID} .crow-chip {
+      color: ${INK_2}; font-size: 12px;
+      background: ${SURFACE_2}; padding: 4px 8px; border-radius: 4px;
+      cursor: pointer; text-align: center;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
-    #${DROPDOWN_ID} .ddi {
-      display: grid; grid-template-columns: 1fr auto auto;
-      gap: 12px; padding: 4px 8px;
-      border-radius: 4px; cursor: pointer;
-      color: ${INK_1};
-      align-items: baseline;
+    #${PANEL_ID} .crow-chip:hover { color: ${INK_1}; background: ${SURFACE_3}; }
+    #${PANEL_ID} .crow-chip.is-empty { color: ${INK_3}; cursor: default; pointer-events: none; }
+
+    #${PANEL_ID} .empty-state {
+      color: ${INK_3}; padding: 20px 0; font-size: 13px; text-align: center;
     }
-    #${DROPDOWN_ID} .ddi:hover { background: ${SURFACE_2}; }
-    #${DROPDOWN_ID} .ddi-name { color: ${INK_2}; white-space: nowrap; }
-    #${DROPDOWN_ID} .ddi-value { color: ${INK_1}; white-space: nowrap; opacity: 0.85; }
-    #${DROPDOWN_ID} .ddi-check { color: ${ACCENT}; width: 10px; text-align: right; }
-    #${DROPDOWN_ID} .ddi-check.is-hidden { visibility: hidden; }
   `;
   document.head.appendChild(style);
 }
 
-const GROUP_ORDER: { hints: PropKind[]; label: string }[] = [
-  { hints: ['fontSize', 'fontWeight', 'lineHeight', 'letterSpacing'], label: 'Typography' },
-  { hints: ['spacing'], label: 'Spacing' },
-  { hints: ['color'], label: 'Color' },
-  { hints: ['radius'], label: 'Radius' },
-  { hints: ['shadow'], label: 'Shadow' },
-  { hints: ['opacity'], label: 'Opacity' },
-  { hints: ['duration'], label: 'Motion' },
-];
+// ── Group order ───────────────────────────────────────────────────────────
+const TYPO_HINTS: PropKind[] = ['fontSize', 'fontWeight', 'lineHeight', 'letterSpacing'];
 
-function dropdownCandidates(prop: PropEntry): CachedToken[] {
-  if (!prop.tokens.length) return [];
-  const ref = prop.tokens[0]!;
-  const cat = ref.path[0];
-  const sub = ref.path[1];
+function tokenCandidates(hint: PropKind, ref: CachedToken | null): CachedToken[] {
   return tokens.filter((t) => {
-    if (t.path[0] !== cat) return false;
-    if (cat === 'typography') return t.path[1] === sub;
+    if (!pathHintMatches(t.path, hint)) return false;
+    if (ref && t.path[0] === 'typography') return t.path[1] === ref.path[1];
     return true;
   });
 }
@@ -468,121 +522,103 @@ function emitInspectSelect(prop: PropEntry): void {
   activeWs.send(JSON.stringify({ type: 'inspect-select', items }));
 }
 
-function buildEditPanel(el: Element, props: PropEntry[]): HTMLElement {
-  const panel = document.createElement('div');
-  panel.id = PANEL_ID;
-
-  // Header
-  const header = document.createElement('div');
-  header.className = 'dml-header';
-  const title = document.createElement('div');
-  const tag = document.createElement('div');
-  tag.className = 'dml-tag';
-  tag.textContent = `<${el.tagName.toLowerCase()}>`;
-  const sub = document.createElement('div');
-  sub.className = 'dml-subhead';
-  const matched = props.filter((p) => p.tokens.length).length;
-  sub.textContent = `${props.length} propert${props.length === 1 ? 'y' : 'ies'} · ${matched} token${matched === 1 ? '' : 's'} matched`;
-  title.appendChild(tag);
-  title.appendChild(sub);
-  const close = document.createElement('button');
-  close.className = 'dml-close';
-  close.textContent = '✕';
-  close.addEventListener('click', removeEditPanel);
-  header.appendChild(title);
-  header.appendChild(close);
-  panel.appendChild(header);
-
-  const divider = document.createElement('div');
-  divider.className = 'dml-divider';
-  panel.appendChild(divider);
-
-  // Groups
-  let nonEmptyGroups = 0;
-  for (const group of GROUP_ORDER) {
-    const groupProps = props.filter((p) => group.hints.includes(p.hint));
-    if (!groupProps.length) continue;
-    nonEmptyGroups++;
-    const groupEl = document.createElement('div');
-    groupEl.className = 'dml-group';
-    const groupLabel = document.createElement('div');
-    groupLabel.className = 'dml-group-label';
-    groupLabel.textContent = group.label;
-    groupEl.appendChild(groupLabel);
-    for (const prop of groupProps) {
-      groupEl.appendChild(buildRow(prop));
-    }
-    panel.appendChild(groupEl);
-  }
-
-  if (nonEmptyGroups === 0) {
-    const empty = document.createElement('div');
-    empty.className = 'dml-empty';
-    empty.textContent = 'No inspectable styles on this element.';
-    panel.appendChild(empty);
-  }
-
-  return panel;
+// ── Builders ──────────────────────────────────────────────────────────────
+function createEl<K extends keyof HTMLElementTagNameMap>(
+  tag: K,
+  className?: string,
+  text?: string,
+): HTMLElementTagNameMap[K] {
+  const el = document.createElement(tag);
+  if (className) el.className = className;
+  if (text !== undefined) el.textContent = text;
+  return el;
 }
 
-function buildRow(prop: PropEntry): HTMLElement {
-  const row = document.createElement('div');
-  row.className = 'dml-row';
+const SHORT_LABEL: Record<string, string> = {
+  'font-size': 'Size',
+  'font-weight': 'Weight',
+  'line-height': 'Line',
+  'letter-spacing': 'Tracking',
+  color: 'Text',
+  'background-color': 'Background',
+  'border-radius': 'Radius',
+  'box-shadow': 'Shadow',
+  gap: 'Gap',
+  'padding-top': 'Top',
+  'padding-right': 'Right',
+  'padding-bottom': 'Bottom',
+  'padding-left': 'Left',
+  'margin-top': 'Top',
+  'margin-right': 'Right',
+  'margin-bottom': 'Bottom',
+  'margin-left': 'Left',
+};
 
-  // Column 1: leading sample (color swatch only) or empty cell
-  const lead = document.createElement('span');
-  if (prop.hint === 'color' && prop.value) {
-    lead.className = 'dml-swatch';
-    lead.style.background = prop.value;
-    const colorInput = document.createElement('input');
-    colorInput.type = 'color';
-    colorInput.value = parseHex(prop.value) ?? '#000000';
-    colorInput.addEventListener('input', () => {
-      const next = colorInput.value;
-      lead.style.background = next;
-      if (prop.tokens.length) emitTokenUpdate(prop.tokens[0]!.path, next);
+function shortLabel(prop: string): string {
+  return SHORT_LABEL[prop] ?? prop;
+}
+
+function formatTokenName(token: CachedToken | undefined): string {
+  if (!token) return '—';
+  // for typography sub-groups, drop the leading "typography."
+  if (token.path[0] === 'typography') return token.path.slice(1).join('.');
+  return token.path.join('.');
+}
+
+function buildSliderRow(prop: PropEntry): HTMLElement {
+  const row = createEl('div', 'srow');
+
+  // Label (short)
+  row.appendChild(createEl('span', 'srow-label', shortLabel(prop.prop)));
+
+  // Slider — snaps to candidate tokens
+  const candidates = tokenCandidates(prop.hint, prop.tokens[0] ?? null);
+  const slider = createEl('input', 'slider');
+  slider.type = 'range';
+  if (candidates.length >= 2) {
+    slider.min = '0';
+    slider.max = String(candidates.length - 1);
+    slider.step = '1';
+    const currentIdx = prop.tokens[0]
+      ? candidates.findIndex(
+          (c) => c.path.join('.') === prop.tokens[0]!.path.join('.'),
+        )
+      : 0;
+    slider.value = String(currentIdx >= 0 ? currentIdx : 0);
+    slider.setAttribute('aria-label', `${shortLabel(prop.prop)} value`);
+    slider.addEventListener('input', () => {
+      const idx = Number(slider.value);
+      const next = candidates[idx];
+      if (!next || !prop.tokens.length) return;
+      // Update both: current token's value AND swap which token is "active" for this prop
+      prop.tokens[0] = next;
+      input.value = valueAsString(next.value);
+      chip.textContent = formatTokenName(next);
+      emitTokenUpdate(next.path, next.value);
     });
-    lead.appendChild(colorInput);
+  } else {
+    slider.disabled = true;
+    slider.style.opacity = '0.3';
   }
-  row.appendChild(lead);
+  row.appendChild(slider);
 
-  // Column 2: property name
-  const propCell = document.createElement('span');
-  propCell.className = 'dml-prop';
-  propCell.textContent = prop.prop;
-  row.appendChild(propCell);
-
-  // Column 3: separator
-  const dot = document.createElement('span');
-  dot.className = 'dml-dot';
-  dot.textContent = '·';
-  row.appendChild(dot);
-
-  // Column 4: token chip
-  const chip = document.createElement('span');
+  // Token chip
+  const chip = createEl('button', 'srow-chip');
   if (prop.tokens.length) {
-    chip.className = 'dml-chip';
-    chip.textContent = prop.tokens[0]!.path.join('.');
-    chip.title = `Show ${chip.textContent} in panel`;
+    chip.textContent = formatTokenName(prop.tokens[0]);
+    chip.title = `Show ${prop.tokens[0]!.path.join('.')} in panel`;
     chip.addEventListener('click', () => emitInspectSelect(prop));
   } else {
-    chip.className = 'dml-chip is-empty';
+    chip.classList.add('is-empty');
     chip.textContent = '—';
   }
   row.appendChild(chip);
 
-  // Column 5: value editor + chevron
-  const valueCell = document.createElement('div');
-  valueCell.className = 'dml-value-cell';
-
-  const input = document.createElement('input');
-  input.className = 'dml-input';
+  // Value input (free-form)
+  const input = createEl('input', 'srow-value');
   input.type = 'text';
   input.value = prop.value;
-  if (!prop.tokens.length) {
-    input.classList.add('is-readonly');
-    input.readOnly = true;
-  }
+  input.setAttribute('aria-label', `${shortLabel(prop.prop)} raw value`);
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') input.blur();
     if (e.key === 'Escape') {
@@ -593,24 +629,132 @@ function buildRow(prop: PropEntry): HTMLElement {
   input.addEventListener('change', () => {
     if (prop.tokens.length) emitTokenUpdate(prop.tokens[0]!.path, input.value);
   });
-  valueCell.appendChild(input);
+  row.appendChild(input);
 
-  const chevron = document.createElement('button');
-  chevron.className = 'dml-chevron';
-  chevron.textContent = '▾';
-  if (!prop.tokens.length) chevron.classList.add('is-disabled');
-  chevron.addEventListener('click', (e) => {
-    e.stopPropagation();
-    openDropdown(prop, chevron, input);
+  return row;
+}
+
+function buildSpacingMatrices(props: PropEntry[]): HTMLElement {
+  const wrap = createEl('div', 'matrices');
+
+  function buildMatrix(title: string, sides: Record<'top' | 'right' | 'bottom' | 'left', PropEntry | undefined>): HTMLElement {
+    const matrix = createEl('div', 'matrix');
+    const t = createEl('div', 'matrix-title', title);
+    matrix.appendChild(t);
+    const grid = createEl('div', 'matrix-grid');
+
+    function makeCell(prop: PropEntry | undefined): HTMLElement {
+      const cell = createEl('input', 'matrix-cell');
+      cell.type = 'text';
+      if (!prop) {
+        cell.value = '0';
+        cell.disabled = true;
+        cell.classList.add('is-zero');
+        return cell;
+      }
+      cell.value = compactValue(prop.value);
+      cell.title = prop.tokens.length
+        ? `${prop.prop}: ${prop.tokens[0]!.path.join('.')}`
+        : prop.prop;
+      if (cell.value === '0' || cell.value === '0px') cell.classList.add('is-zero');
+      cell.setAttribute('aria-label', prop.prop);
+      cell.addEventListener('focus', () => cell.select());
+      cell.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') cell.blur();
+        if (e.key === 'Escape') {
+          cell.value = compactValue(prop.value);
+          cell.blur();
+        }
+      });
+      cell.addEventListener('change', () => {
+        if (!prop.tokens.length) return;
+        emitTokenUpdate(prop.tokens[0]!.path, cell.value);
+      });
+      return cell;
+    }
+
+    function placeholder(): HTMLElement {
+      return createEl('span');
+    }
+
+    // 3x3 grid: corners empty, edges hold values, center is element preview
+    grid.appendChild(placeholder());
+    grid.appendChild(makeCell(sides.top));
+    grid.appendChild(placeholder());
+    grid.appendChild(makeCell(sides.left));
+    grid.appendChild(createEl('span', 'matrix-center'));
+    grid.appendChild(makeCell(sides.right));
+    grid.appendChild(placeholder());
+    grid.appendChild(makeCell(sides.bottom));
+    grid.appendChild(placeholder());
+    matrix.appendChild(grid);
+    return matrix;
+  }
+
+  function findProp(prefix: string, side: string): PropEntry | undefined {
+    return props.find((p) => p.prop === `${prefix}-${side}`);
+  }
+
+  wrap.appendChild(
+    buildMatrix('Padding', {
+      top: findProp('padding', 'top'),
+      right: findProp('padding', 'right'),
+      bottom: findProp('padding', 'bottom'),
+      left: findProp('padding', 'left'),
+    }),
+  );
+  wrap.appendChild(
+    buildMatrix('Margin', {
+      top: findProp('margin', 'top'),
+      right: findProp('margin', 'right'),
+      bottom: findProp('margin', 'bottom'),
+      left: findProp('margin', 'left'),
+    }),
+  );
+  return wrap;
+}
+
+function compactValue(v: string): string {
+  // "16px" → "16", "0.5rem" → "0.5rem" (keep), "0px" → "0"
+  if (v === '0px' || v === '0em' || v === '0rem') return '0';
+  const m = v.match(/^(\d+)px$/);
+  if (m) return m[1]!;
+  return v;
+}
+
+function buildColorRow(prop: PropEntry): HTMLElement {
+  const row = createEl('div', 'crow');
+  const swatch = createEl('span', 'crow-swatch');
+  swatch.style.background = prop.value;
+  const colorInput = createEl('input');
+  colorInput.type = 'color';
+  colorInput.value = parseHex(prop.value) ?? '#000000';
+  colorInput.addEventListener('input', () => {
+    swatch.style.background = colorInput.value;
+    if (prop.tokens.length) emitTokenUpdate(prop.tokens[0]!.path, colorInput.value);
   });
-  valueCell.appendChild(chevron);
+  swatch.appendChild(colorInput);
+  row.appendChild(swatch);
 
-  row.appendChild(valueCell);
+  row.appendChild(createEl('span', 'crow-label', shortLabel(prop.prop)));
+  row.appendChild(createEl('span', 'crow-value', prop.value));
+
+  const chip = createEl('button');
+  if (prop.tokens.length) {
+    chip.className = 'crow-chip';
+    chip.textContent = formatTokenName(prop.tokens[0]);
+    chip.title = `Show ${prop.tokens[0]!.path.join('.')} in panel`;
+    chip.addEventListener('click', () => emitInspectSelect(prop));
+  } else {
+    chip.className = 'crow-chip is-empty';
+    chip.textContent = '—';
+  }
+  row.appendChild(chip);
+
   return row;
 }
 
 function parseHex(value: string): string | null {
-  // Use the browser's parser via a probe element
   const probe = document.createElement('div');
   probe.style.display = 'none';
   probe.style.color = value;
@@ -622,75 +766,94 @@ function parseHex(value: string): string | null {
   const parts = m[1]!.split(/[\s,]+/).map(Number);
   if (parts.length < 3) return null;
   const hex = (n: number) =>
-    Math.max(0, Math.min(255, Math.round(n)))
-      .toString(16)
-      .padStart(2, '0');
+    Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, '0');
   return `#${hex(parts[0]!)}${hex(parts[1]!)}${hex(parts[2]!)}`;
 }
 
-// ── Token dropdown (▾) ─────────────────────────────────────────────────────
-function closeDropdown(): void {
-  document.getElementById(DROPDOWN_ID)?.remove();
-}
+function buildEditPanel(el: Element, props: PropEntry[]): HTMLElement {
+  const panel = createEl('div');
+  panel.id = PANEL_ID;
 
-function openDropdown(prop: PropEntry, anchor: HTMLElement, input: HTMLInputElement): void {
-  closeDropdown();
-  const candidates = dropdownCandidates(prop);
-  if (!candidates.length) return;
-  const dd = document.createElement('div');
-  dd.id = DROPDOWN_ID;
+  // Header
+  const hdr = createEl('div', 'hdr');
+  const title = createEl('div');
+  title.appendChild(createEl('div', 'hdr-tag', `<${el.tagName.toLowerCase()}>`));
+  const matched = props.filter((p) => p.tokens.length).length;
+  title.appendChild(
+    createEl(
+      'div',
+      'hdr-sub',
+      `${matched} token${matched === 1 ? '' : 's'} matched · ${props.length} propert${props.length === 1 ? 'y' : 'ies'}`,
+    ),
+  );
+  const close = createEl('button', 'hdr-close', '✕');
+  close.setAttribute('aria-label', 'Close edit panel');
+  close.addEventListener('click', removeEditPanel);
+  hdr.appendChild(title);
+  hdr.appendChild(close);
+  panel.appendChild(hdr);
 
-  const currentPath = prop.tokens[0]!.path.join('.');
-  for (const c of candidates) {
-    const item = document.createElement('div');
-    item.className = 'ddi';
-    const name = document.createElement('span');
-    name.className = 'ddi-name';
-    name.textContent = c.path.join('.');
-    const val = document.createElement('span');
-    val.className = 'ddi-value';
-    val.textContent = valueAsString(c.value);
-    const check = document.createElement('span');
-    check.className = 'ddi-check';
-    if (c.path.join('.') === currentPath) {
-      check.textContent = '✓';
-    } else {
-      check.classList.add('is-hidden');
-    }
-    item.appendChild(name);
-    item.appendChild(val);
-    item.appendChild(check);
-    item.addEventListener('click', () => {
-      // Update the *active* token path's value to this candidate's value.
-      // (We rebind the prop.tokens[0] reference so the chip reflects the choice.)
-      const nextValue = c.value;
-      input.value = valueAsString(nextValue);
-      emitTokenUpdate(prop.tokens[0]!.path, nextValue);
-      closeDropdown();
-    });
-    dd.appendChild(item);
+  panel.appendChild(createEl('div', 'divider'));
+
+  let renderedAny = false;
+
+  // Typography group
+  const typoProps = props.filter((p) => TYPO_HINTS.includes(p.hint));
+  if (typoProps.length) {
+    const grp = createEl('div', 'grp');
+    grp.appendChild(createEl('div', 'grp-label', 'Typography'));
+    for (const p of typoProps) grp.appendChild(buildSliderRow(p));
+    panel.appendChild(grp);
+    renderedAny = true;
   }
 
-  document.body.appendChild(dd);
-  const r = anchor.getBoundingClientRect();
-  const ddr = dd.getBoundingClientRect();
-  let top = r.bottom + 6;
-  let left = r.right - ddr.width;
-  if (top + ddr.height > window.innerHeight - 8) top = r.top - ddr.height - 6;
-  if (left < 8) left = 8;
-  dd.style.top = `${top}px`;
-  dd.style.left = `${left}px`;
-
-  // Dismiss on outside click
-  setTimeout(() => {
-    function onDocClick(e: MouseEvent) {
-      const t = e.target as Element | null;
-      if (t && (t === dd || dd.contains(t))) return;
-      closeDropdown();
-      document.removeEventListener('click', onDocClick, true);
+  // Spacing group — box matrices
+  const spacingProps = props.filter((p) => p.hint === 'spacing');
+  const hasPadding = spacingProps.some((p) => p.prop.startsWith('padding'));
+  const hasMargin = spacingProps.some((p) => p.prop.startsWith('margin'));
+  if (hasPadding || hasMargin) {
+    const grp = createEl('div', 'grp');
+    grp.appendChild(createEl('div', 'grp-label', 'Spacing'));
+    grp.appendChild(buildSpacingMatrices(spacingProps));
+    // Gap row if present
+    const gap = spacingProps.find((p) => p.prop === 'gap');
+    if (gap) {
+      const gapWrap = createEl('div');
+      gapWrap.style.marginTop = '12px';
+      gapWrap.appendChild(buildSliderRow(gap));
+      grp.appendChild(gapWrap);
     }
-    document.addEventListener('click', onDocClick, true);
-  }, 0);
+    panel.appendChild(grp);
+    renderedAny = true;
+  }
+
+  // Color group
+  const colorProps = props.filter((p) => p.hint === 'color');
+  if (colorProps.length) {
+    const grp = createEl('div', 'grp');
+    grp.appendChild(createEl('div', 'grp-label', 'Color'));
+    for (const p of colorProps) grp.appendChild(buildColorRow(p));
+    panel.appendChild(grp);
+    renderedAny = true;
+  }
+
+  // Radius / shadow / opacity / duration — slider rows
+  const otherProps = props.filter(
+    (p) => p.hint === 'radius' || p.hint === 'shadow' || p.hint === 'opacity' || p.hint === 'duration',
+  );
+  if (otherProps.length) {
+    const grp = createEl('div', 'grp');
+    grp.appendChild(createEl('div', 'grp-label', 'Surface'));
+    for (const p of otherProps) grp.appendChild(buildSliderRow(p));
+    panel.appendChild(grp);
+    renderedAny = true;
+  }
+
+  if (!renderedAny) {
+    panel.appendChild(createEl('div', 'empty-state', 'No inspectable styles on this element.'));
+  }
+
+  return panel;
 }
 
 // ── Edit panel placement ───────────────────────────────────────────────────
@@ -722,7 +885,6 @@ function positionEditPanel(panel: HTMLElement, el: Element): void {
 }
 
 function removeEditPanel(): void {
-  closeDropdown();
   editPanel?.remove();
   editPanel = null;
   hoverEl = null;
@@ -744,11 +906,10 @@ function setInspectMode(enabled: boolean): void {
 
 function isAgentNode(el: Element | null): boolean {
   if (!el) return false;
-  // Walk up to see if the element is inside any of our agent-injected nodes
   let cur: Element | null = el;
   while (cur) {
     const id = cur.id;
-    if (id === OVERLAY_ID || id === LABEL_ID || id === PANEL_ID || id === DROPDOWN_ID) return true;
+    if (id === OVERLAY_ID || id === LABEL_ID || id === PANEL_ID) return true;
     cur = cur.parentElement;
   }
   return false;
