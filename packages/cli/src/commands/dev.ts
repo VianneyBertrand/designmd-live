@@ -10,8 +10,8 @@ export const devCommand = defineCommand({
   args: {
     port: {
       type: 'string',
-      description: 'Port for the panel (default: 3001)',
-      default: '3001',
+      description: 'Port for the panel (default: 3030)',
+      default: '3030',
     },
     cwd: {
       type: 'string',
