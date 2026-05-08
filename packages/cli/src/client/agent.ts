@@ -59,6 +59,7 @@ const overrides: Record<string, string> = Object.create(null);
 const tokens: CachedToken[] = [];
 let inspectMode = false;
 let hoverEl: Element | null = null;
+let selectedEl: Element | null = null;
 let editPanel: HTMLElement | null = null;
 let activeWs: WebSocket | null = null;
 let retry = 0;
@@ -1311,16 +1312,25 @@ function releaseBottomSpace(): void {
 }
 
 function showEditPanel(el: Element): void {
-  removeEditPanel();
+  // Tear down the old panel but keep the overlay so the visual
+  // continuity (selection outline + tag label) is preserved.
+  closeDropdown();
+  releaseBottomSpace();
+  editPanel?.remove();
+  editPanel = null;
+
   ensureEditStyles();
   hoverEl = el;
+  selectedEl = el;
+  placeOverlay(el);
+
   const props = inspectElement(el);
   const panel = buildEditPanel(el, props);
   document.body.appendChild(panel);
   editPanel = panel;
-  // The panel is fixed at the bottom but we also push body content above it
-  // (DevTools-style) so the user can scroll to inspect the part of the page
-  // that would otherwise be hidden behind the panel.
+  // DevTools-style: the panel is fixed at the bottom AND the body's
+  // padding-bottom is grown to match, so the user can still scroll the
+  // entire app while editing.
   reserveBottomSpace(panel);
 }
 
@@ -1329,7 +1339,9 @@ function removeEditPanel(): void {
   releaseBottomSpace();
   editPanel?.remove();
   editPanel = null;
+  selectedEl = null;
   hoverEl = null;
+  removeOverlay();
 }
 
 // ── Inspector mode toggle ──────────────────────────────────────────────────
@@ -1341,6 +1353,7 @@ function setInspectMode(enabled: boolean): void {
   } else {
     document.body.style.cursor = '';
     hoverEl = null;
+    selectedEl = null;
     removeOverlay();
     removeEditPanel();
   }
@@ -1358,9 +1371,16 @@ function isAgentNode(el: Element | null): boolean {
 }
 
 function onMouseMove(e: MouseEvent): void {
-  if (!inspectMode || editPanel) return;
+  if (!inspectMode) return;
   const target = e.target as Element | null;
-  if (!target || isAgentNode(target)) return;
+  // Cursor on our own UI: keep the overlay anchored on the selected element.
+  if (!target || isAgentNode(target)) {
+    if (selectedEl && hoverEl !== selectedEl) {
+      hoverEl = selectedEl;
+      placeOverlay(selectedEl);
+    }
+    return;
+  }
   if (target === hoverEl) return;
   hoverEl = target;
   placeOverlay(target);
@@ -1372,7 +1392,6 @@ function onClick(e: MouseEvent): void {
   if (!target || isAgentNode(target)) return;
   e.preventDefault();
   e.stopPropagation();
-  removeOverlay();
   showEditPanel(target);
 }
 
