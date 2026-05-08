@@ -9,20 +9,32 @@ import { consola } from 'consola';
 import { Hono } from 'hono';
 import { WebSocketServer } from 'ws';
 import { AGENT_SCRIPT } from './agent.ts';
+import { proxyMiddleware } from './proxy.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PANEL_DIR = resolve(__dirname, 'panel');
 const HAS_PANEL = existsSync(join(PANEL_DIR, 'index.html'));
+const PANEL_PREFIX = '/__designmd-live';
 
 interface ServerOptions {
   port: number;
   cwd: string;
+  proxy?: string | null;
 }
 
-export async function startServer({ port, cwd }: ServerOptions): Promise<void> {
+export async function startServer({ port, cwd, proxy }: ServerOptions): Promise<void> {
   const app = new Hono();
+  const proxyTarget = normalizeProxyTarget(proxy);
 
+  // ── API ────────────────────────────────────────────────────────────────
   app.get('/api/health', (c) => c.json({ ok: true }));
+
+  app.get('/api/config', (c) =>
+    c.json({
+      proxy: proxyTarget ? { target: proxyTarget, path: '/' } : null,
+      panelPath: PANEL_PREFIX,
+    }),
+  );
 
   app.get('/api/design-md', async (c) => {
     const path = join(cwd, 'DESIGN.md');
@@ -43,33 +55,48 @@ export async function startServer({ port, cwd }: ServerOptions): Promise<void> {
     return c.json({ ok: true });
   });
 
+  // ── Browser agent ──────────────────────────────────────────────────────
   app.get('/client.js', (c) => {
     c.header('content-type', 'application/javascript; charset=utf-8');
     c.header('cache-control', 'no-store');
     return c.body(AGENT_SCRIPT);
   });
 
+  // ── Panel UI ───────────────────────────────────────────────────────────
   if (HAS_PANEL) {
+    // Strip the prefix so /__designmd-live/foo → look up /foo on disk.
     app.use(
-      '/*',
+      `${PANEL_PREFIX}/*`,
       serveStatic({
         root: PANEL_DIR,
-        rewriteRequestPath: (path) => (path === '/' ? '/index.html' : path),
+        rewriteRequestPath: (path) => {
+          const stripped = path.replace(PANEL_PREFIX, '') || '/';
+          return stripped === '/' ? '/index.html' : stripped;
+        },
       }),
     );
-    // SPA fallback: any unmatched route serves index.html
-    app.get('*', async (c) => {
+    // SPA fallback (handles a refresh on a deep panel route)
+    app.get(`${PANEL_PREFIX}/*`, async (c) => {
       const html = await readFile(join(PANEL_DIR, 'index.html'), 'utf8');
       return c.html(html);
     });
+  }
+
+  // ── Root + proxy ───────────────────────────────────────────────────────
+  if (proxyTarget) {
+    app.all('*', proxyMiddleware({ target: proxyTarget, panelPrefix: PANEL_PREFIX }));
+  } else if (HAS_PANEL) {
+    // No proxy: root serves the panel directly (no prefix needed).
+    app.get('/', (c) => c.redirect(PANEL_PREFIX + '/'));
   } else {
     app.get('/', (c) =>
       c.text(
-        `designmd-live (dev mode — panel statics not bundled)\n\nAPI:\n  GET  /api/design-md\n  POST /api/design-md\n  GET  /client.js\n  WS   /ws\n\nRun the panel separately: pnpm --filter @designmd-live/panel dev\n`,
+        `designmd-live (API-only mode — panel statics not bundled)\n\nAPI:\n  GET  /api/design-md\n  POST /api/design-md\n  GET  /api/config\n  GET  /client.js\n  WS   /ws\n`,
       ),
     );
   }
 
+  // ── Boot HTTP server + WS broker ───────────────────────────────────────
   const server = serve({ fetch: app.fetch, port, hostname: '127.0.0.1' });
 
   const wss = new WebSocketServer({ noServer: true });
@@ -92,10 +119,26 @@ export async function startServer({ port, cwd }: ServerOptions): Promise<void> {
     }
   });
 
-  consola.success(`Panel ready at http://localhost:${port}`);
-  consola.info(`WS broker on ws://localhost:${port}/ws`);
+  // ── Logging ────────────────────────────────────────────────────────────
+  consola.success(`Panel ready at http://localhost:${port}${PANEL_PREFIX}/`);
+  if (proxyTarget) {
+    consola.success(`Proxying ${proxyTarget} at http://localhost:${port}/`);
+    consola.info('Agent script injected automatically — no project changes needed.');
+  } else {
+    consola.info(`Agent script: <script src="http://localhost:${port}/client.js"></script>`);
+  }
+  consola.info(`WS broker: ws://localhost:${port}/ws`);
   if (!HAS_PANEL) {
     consola.warn('Panel statics missing — running in API-only / dev mode');
   }
-  consola.info(`Agent script: <script src="http://localhost:${port}/client.js"></script>`);
+}
+
+function normalizeProxyTarget(input: string | null | undefined): string | null {
+  if (!input) return null;
+  try {
+    return new URL(input).origin;
+  } catch {
+    consola.warn(`Invalid --proxy URL "${input}", ignoring`);
+    return null;
+  }
 }

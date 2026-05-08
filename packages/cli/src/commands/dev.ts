@@ -18,14 +18,19 @@ export const devCommand = defineCommand({
       description: 'Path to the target project (default: process.cwd())',
       default: process.cwd(),
     },
+    proxy: {
+      type: 'string',
+      description: 'Reverse-proxy a dev server URL and auto-inject the agent (e.g. http://localhost:3000)',
+    },
   },
   async run({ args }) {
     const port = Number.parseInt(args.port, 10);
     const cwd = args.cwd;
+    const proxy = args.proxy ?? null;
 
-    consola.start(`Starting designmd-live panel on http://localhost:${port}`);
+    consola.start(`Starting designmd-live on http://localhost:${port}`);
     consola.info(`Watching DESIGN.md in: ${cwd}`);
 
-    await startServer({ port, cwd });
+    await startServer({ port, cwd, proxy });
   },
 });

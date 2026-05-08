@@ -91,11 +91,17 @@ designmd-live/
 - Agent script servi sur `/client.js`, à injecter dans le `<head>` du projet cible en dev
 - Panel : iframe du projet cible + token edits broadcast en live
 
-### v0.3 (jour 5) — multi-skin switching
+### v0.3 — friction zéro ✅
+- Mode proxy : `--proxy http://localhost:3000` reverse-proxie le dev server et injecte le script automatiquement dans le HTML. Aucune modif de code requise dans le projet cible.
+- Panel servi sous `/__designmd-live/` quand la racine est utilisée par le proxy.
+- `designmd-live init` scaffolde un DESIGN.md de départ.
+- Bundle CLI single-port : `npx designmd-live dev` lance tout (panel + API + WS + proxy optionnel) sur un seul port.
+
+### v0.4 — multi-skin switching
 - Dropdown de DESIGN.md (locaux + URL distantes)
 - Switch instantané, swap complet des CSS vars
 
-### v0.4 (jour 6-7) — landing + démo vidéo
+### v0.5 — landing + démo vidéo
 - `apps/landing` : Next.js 16, hero + démo gif + npm install snippet
 - Deploy Vercel
 
