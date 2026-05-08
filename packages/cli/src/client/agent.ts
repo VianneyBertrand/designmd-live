@@ -1244,6 +1244,8 @@ function attachDrag(panel: HTMLElement, handle: HTMLElement): void {
     panel.style.right = 'auto';
     panel.style.bottom = 'auto';
     panel.style.width = `${panelWidth}px`;
+    // Panel no longer docks the bottom — release the reserved page space.
+    releaseBottomSpace();
     startX = e.clientX;
     startY = e.clientY;
     panel.classList.add('is-dragging');
@@ -1274,6 +1276,40 @@ function attachDrag(panel: HTMLElement, handle: HTMLElement): void {
 }
 
 // ── Edit panel ─────────────────────────────────────────────────────────────
+let savedPaddingBottom: string | null = null;
+let panelResizeObserver: ResizeObserver | null = null;
+
+function reserveBottomSpace(panel: HTMLElement): void {
+  if (savedPaddingBottom === null) {
+    savedPaddingBottom = document.body.style.paddingBottom;
+  }
+  const update = () => {
+    if (!panel.isConnected) return;
+    const r = panel.getBoundingClientRect();
+    if (r.height === 0) return;
+    document.body.style.paddingBottom = `${Math.ceil(r.height) + 24}px`;
+  };
+  update();
+  if (typeof ResizeObserver !== 'undefined') {
+    panelResizeObserver?.disconnect();
+    panelResizeObserver = new ResizeObserver(update);
+    panelResizeObserver.observe(panel);
+  }
+}
+
+function releaseBottomSpace(): void {
+  panelResizeObserver?.disconnect();
+  panelResizeObserver = null;
+  if (savedPaddingBottom !== null) {
+    if (savedPaddingBottom === '') {
+      document.body.style.paddingBottom = '';
+    } else {
+      document.body.style.paddingBottom = savedPaddingBottom;
+    }
+    savedPaddingBottom = null;
+  }
+}
+
 function showEditPanel(el: Element): void {
   removeEditPanel();
   ensureEditStyles();
@@ -1282,11 +1318,15 @@ function showEditPanel(el: Element): void {
   const panel = buildEditPanel(el, props);
   document.body.appendChild(panel);
   editPanel = panel;
-  // Panel is docked at the bottom of the viewport via CSS — no positioning needed.
+  // The panel is fixed at the bottom but we also push body content above it
+  // (DevTools-style) so the user can scroll to inspect the part of the page
+  // that would otherwise be hidden behind the panel.
+  reserveBottomSpace(panel);
 }
 
 function removeEditPanel(): void {
   closeDropdown();
+  releaseBottomSpace();
   editPanel?.remove();
   editPanel = null;
   hoverEl = null;
