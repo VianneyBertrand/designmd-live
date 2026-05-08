@@ -1,11 +1,18 @@
+import { existsSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { serve } from '@hono/node-server';
+import { serveStatic } from '@hono/node-server/serve-static';
 import { parseDesignMd } from '@designmd-live/core';
 import { consola } from 'consola';
 import { Hono } from 'hono';
 import { WebSocketServer } from 'ws';
 import { AGENT_SCRIPT } from './agent.ts';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const PANEL_DIR = resolve(__dirname, 'panel');
+const HAS_PANEL = existsSync(join(PANEL_DIR, 'index.html'));
 
 interface ServerOptions {
   port: number;
@@ -42,11 +49,26 @@ export async function startServer({ port, cwd }: ServerOptions): Promise<void> {
     return c.body(AGENT_SCRIPT);
   });
 
-  app.get('/', (c) =>
-    c.text(
-      `designmd-live\n\nAPI:\n  GET  /api/design-md\n  POST /api/design-md\n  GET  /client.js  (browser agent)\n  WS   /ws        (broker)\n`,
-    ),
-  );
+  if (HAS_PANEL) {
+    app.use(
+      '/*',
+      serveStatic({
+        root: PANEL_DIR,
+        rewriteRequestPath: (path) => (path === '/' ? '/index.html' : path),
+      }),
+    );
+    // SPA fallback: any unmatched route serves index.html
+    app.get('*', async (c) => {
+      const html = await readFile(join(PANEL_DIR, 'index.html'), 'utf8');
+      return c.html(html);
+    });
+  } else {
+    app.get('/', (c) =>
+      c.text(
+        `designmd-live (dev mode — panel statics not bundled)\n\nAPI:\n  GET  /api/design-md\n  POST /api/design-md\n  GET  /client.js\n  WS   /ws\n\nRun the panel separately: pnpm --filter @designmd-live/panel dev\n`,
+      ),
+    );
+  }
 
   const server = serve({ fetch: app.fetch, port, hostname: '127.0.0.1' });
 
@@ -72,5 +94,8 @@ export async function startServer({ port, cwd }: ServerOptions): Promise<void> {
 
   consola.success(`Panel ready at http://localhost:${port}`);
   consola.info(`WS broker on ws://localhost:${port}/ws`);
+  if (!HAS_PANEL) {
+    consola.warn('Panel statics missing — running in API-only / dev mode');
+  }
   consola.info(`Agent script: <script src="http://localhost:${port}/client.js"></script>`);
 }
