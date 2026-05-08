@@ -590,11 +590,13 @@ function buildSliderRow(prop: PropEntry): HTMLElement {
       const idx = Number(slider.value);
       const next = candidates[idx];
       if (!next || !prop.tokens.length) return;
-      // Update both: current token's value AND swap which token is "active" for this prop
-      prop.tokens[0] = next;
+      // The slider snaps to candidate values. We mutate the *active token's
+      // value* to the new candidate's value — the path stays the same so the
+      // chip still labels the same token, but its global value (and every
+      // element bound to it) shifts. That's the design-system semantic.
+      const active = prop.tokens[0]!;
       input.value = valueAsString(next.value);
-      chip.textContent = formatTokenName(next);
-      emitTokenUpdate(next.path, next.value);
+      emitTokenUpdate(active.path, next.value);
     });
   } else {
     slider.disabled = true;
