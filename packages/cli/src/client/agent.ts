@@ -311,14 +311,16 @@ function ensureEditStyles(): void {
     }
     #${PANEL_ID} {
       position: fixed;
-      width: min(1320px, calc(100vw - 32px));
-      max-height: calc(100vh - 32px);
+      left: 12px;
+      right: 12px;
+      bottom: 12px;
+      max-height: 60vh;
       overflow: auto;
       background: ${SURFACE};
       color: ${INK_1};
       border: 1px solid ${BORDER};
       border-radius: 12px;
-      box-shadow: 0 16px 40px -8px rgba(0,0,0,.50), 0 1px 0 ${BORDER};
+      box-shadow: 0 -8px 32px -8px rgba(0,0,0,.45), 0 1px 0 ${BORDER};
       padding: 16px 20px;
       z-index: 2147483647;
       font-size: 13px;
@@ -1225,6 +1227,7 @@ function attachDrag(panel: HTMLElement, handle: HTMLElement): void {
   let startY = 0;
   let panelTop = 0;
   let panelLeft = 0;
+  let panelWidth = 0;
 
   handle.addEventListener('mousedown', (e) => {
     // Don't initiate drag from interactive controls inside the header.
@@ -1234,6 +1237,13 @@ function attachDrag(panel: HTMLElement, handle: HTMLElement): void {
     const r = panel.getBoundingClientRect();
     panelTop = r.top;
     panelLeft = r.left;
+    panelWidth = r.width;
+    // Lock the panel size and convert from bottom-anchored to top/left.
+    panel.style.top = `${panelTop}px`;
+    panel.style.left = `${panelLeft}px`;
+    panel.style.right = 'auto';
+    panel.style.bottom = 'auto';
+    panel.style.width = `${panelWidth}px`;
     startX = e.clientX;
     startY = e.clientY;
     panel.classList.add('is-dragging');
@@ -1244,7 +1254,6 @@ function attachDrag(panel: HTMLElement, handle: HTMLElement): void {
       const pr = panel.getBoundingClientRect();
       let top = panelTop + dy;
       let left = panelLeft + dx;
-      // Clamp to viewport
       if (top < 8) top = 8;
       const maxTop = window.innerHeight - pr.height - 8;
       if (maxTop > 8 && top > maxTop) top = maxTop;
@@ -1264,91 +1273,16 @@ function attachDrag(panel: HTMLElement, handle: HTMLElement): void {
   });
 }
 
-// ── Edit panel placement ───────────────────────────────────────────────────
-type Placement = 'below' | 'above';
-
+// ── Edit panel ─────────────────────────────────────────────────────────────
 function showEditPanel(el: Element): void {
   removeEditPanel();
   ensureEditStyles();
   hoverEl = el;
   const props = inspectElement(el);
   const panel = buildEditPanel(el, props);
-
-  // Render hidden first so we can measure and decide what to do.
-  panel.style.visibility = 'hidden';
-  panel.style.top = '0';
-  panel.style.left = '0';
   document.body.appendChild(panel);
   editPanel = panel;
-
-  const panelHeight = panel.getBoundingClientRect().height;
-  const r = el.getBoundingClientRect();
-  const fitsBelow = r.bottom + 12 + panelHeight + 8 <= window.innerHeight;
-
-  function reveal(placement: Placement) {
-    if (editPanel !== panel) return; // user clicked elsewhere mid-scroll
-    panel.style.visibility = '';
-    positionEditPanel(panel, el, placement);
-  }
-
-  if (fitsBelow) {
-    reveal('below');
-    return;
-  }
-
-  // Need more room. Try scrolling the page so the panel fits below.
-  const overflow = r.bottom + 12 + panelHeight + 8 - window.innerHeight;
-  const docEl = document.documentElement;
-  const maxScrollDown = docEl.scrollHeight - window.scrollY - window.innerHeight;
-
-  if (maxScrollDown >= overflow) {
-    window.scrollBy({ top: overflow, left: 0, behavior: 'auto' });
-    requestAnimationFrame(() => requestAnimationFrame(() => reveal('below')));
-    return;
-  }
-
-  // Can't scroll enough — page is at the bottom. Flip above. If we
-  // can't fit above either as-is, scroll up to make room.
-  const spaceAbove = r.top - 8;
-  if (spaceAbove >= panelHeight + 12) {
-    reveal('above');
-    return;
-  }
-  const scrollUpNeeded = panelHeight + 12 - spaceAbove;
-  const maxScrollUp = window.scrollY;
-  if (maxScrollUp > 0) {
-    window.scrollBy({ top: -Math.min(scrollUpNeeded, maxScrollUp), left: 0, behavior: 'auto' });
-    requestAnimationFrame(() => requestAnimationFrame(() => reveal('above')));
-  } else {
-    reveal('above');
-  }
-}
-
-function positionEditPanel(panel: HTMLElement, el: Element, placement: Placement): void {
-  const r = el.getBoundingClientRect();
-  const pr = panel.getBoundingClientRect();
-
-  let top: number;
-  if (placement === 'above') {
-    top = r.top - pr.height - 12;
-  } else {
-    top = r.bottom + 12;
-  }
-
-  // Clamp to viewport bounds — never let the panel slip offscreen.
-  const minTop = 8;
-  const maxTop = window.innerHeight - pr.height - 8;
-  if (maxTop > minTop && top > maxTop) top = maxTop;
-  if (top < minTop) top = minTop;
-
-  let left = r.left;
-  if (left + pr.width > window.innerWidth - 8) {
-    left = window.innerWidth - pr.width - 8;
-  }
-  if (left < 8) left = 8;
-
-  panel.style.top = `${top}px`;
-  panel.style.left = `${left}px`;
+  // Panel is docked at the bottom of the viewport via CSS — no positioning needed.
 }
 
 function removeEditPanel(): void {
