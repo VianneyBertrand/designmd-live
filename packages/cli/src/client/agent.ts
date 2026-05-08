@@ -43,6 +43,7 @@ const SURFACE = 'oklch(0.13 0.005 250)';
 const SURFACE_2 = 'oklch(0.18 0.005 250)';
 const SURFACE_3 = 'oklch(0.22 0.005 250)';
 const BORDER = 'oklch(0.26 0.005 250)';
+const BORDER_SOFT = 'oklch(0.20 0.005 250)';
 const INK_1 = 'oklch(0.96 0 0)';
 const INK_2 = 'oklch(0.74 0 0)';
 const INK_3 = 'oklch(0.55 0 0)';
@@ -243,7 +244,7 @@ function ensureOverlay(): { box: HTMLElement; label: HTMLElement } {
       color: INK_1,
       padding: '8px 10px',
       borderRadius: '6px',
-      font: '12px ui-monospace, "SF Mono", "JetBrains Mono", monospace',
+      font: '13px ui-monospace, "SF Mono", "JetBrains Mono", monospace',
       lineHeight: '1.4',
       whiteSpace: 'pre',
       boxShadow: '0 4px 16px rgba(0,0,0,0.30)',
@@ -304,25 +305,27 @@ function ensureEditStyles(): void {
     }
     #${PANEL_ID} {
       position: fixed;
-      width: 480px;
-      max-height: 80vh;
-      overflow-y: auto;
+      width: min(1100px, calc(100vw - 32px));
+      max-height: calc(100vh - 32px);
+      overflow: auto;
       background: ${SURFACE};
       color: ${INK_1};
       border: 1px solid ${BORDER};
       border-radius: 12px;
       box-shadow: 0 16px 40px -8px rgba(0,0,0,.50), 0 1px 0 ${BORDER};
-      padding: 16px 18px;
+      padding: 18px 22px;
       z-index: 2147483647;
       font-size: 13px;
       line-height: 1.5;
     }
+
+    /* Header */
     #${PANEL_ID} .hdr {
       display: flex; align-items: flex-start; justify-content: space-between;
-      gap: 12px; margin-bottom: 6px;
+      gap: 16px;
     }
     #${PANEL_ID} .hdr-tag { font-size: 14px; font-weight: 500; color: ${INK_1}; }
-    #${PANEL_ID} .hdr-sub { font-size: 12px; color: ${INK_3}; margin-top: 3px; }
+    #${PANEL_ID} .hdr-sub { font-size: 13px; color: ${INK_3}; margin-top: 4px; }
     #${PANEL_ID} .hdr-close {
       background: none; border: 0; cursor: pointer;
       color: ${INK_3}; font-size: 14px; line-height: 1;
@@ -331,175 +334,192 @@ function ensureEditStyles(): void {
     }
     #${PANEL_ID} .hdr-close:hover { color: ${INK_1}; background: ${SURFACE_2}; }
     #${PANEL_ID} .hdr-close:focus-visible { outline: 2px solid ${ACCENT}; outline-offset: 1px; }
-    #${PANEL_ID} .divider { height: 1px; background: ${BORDER}; margin: 14px 0; }
-
-    /* group */
-    #${PANEL_ID} .grp { margin-bottom: 16px; }
-    #${PANEL_ID} .grp:last-child { margin-bottom: 0; }
-    #${PANEL_ID} .grp-label {
-      font-size: 11px; font-weight: 600; letter-spacing: 0.10em;
-      text-transform: uppercase; color: ${INK_3};
-      margin-bottom: 10px;
+    #${PANEL_ID} .divider {
+      height: 1px; background: ${BORDER};
+      margin: 14px -22px 18px;
     }
 
-    /* slider row */
-    #${PANEL_ID} .srow {
-      display: grid;
-      grid-template-columns: 80px 1fr 110px 60px;
-      align-items: center; gap: 12px;
-      padding: 4px 0;
-      min-height: 36px;
+    /* Strip */
+    #${PANEL_ID} .strip {
+      display: flex;
+      align-items: stretch;
+      gap: 0;
     }
-    #${PANEL_ID} .srow-label { color: ${INK_2}; font-size: 13px; }
-    #${PANEL_ID} .srow-chip {
-      color: ${INK_2}; font-size: 12px; cursor: pointer;
-      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-      background: ${SURFACE_2}; padding: 4px 8px; border-radius: 4px;
-      text-align: center;
+    #${PANEL_ID} .card {
+      flex: 1 1 0;
+      min-width: 0;
+      padding: 0 22px;
+      border-left: 1px solid ${BORDER_SOFT};
     }
-    #${PANEL_ID} .srow-chip:hover { color: ${INK_1}; background: ${SURFACE_3}; }
-    #${PANEL_ID} .srow-chip.is-empty { color: ${INK_3}; cursor: default; pointer-events: none; }
-    #${PANEL_ID} .srow-value {
-      background: transparent; border: 1px solid transparent; outline: none;
-      color: ${INK_1}; font: inherit; font-size: 13px;
-      padding: 4px 6px; border-radius: 4px; text-align: right;
-      width: 100%; min-width: 0;
+    #${PANEL_ID} .card:first-child { padding-left: 0; border-left: 0; }
+    #${PANEL_ID} .card:last-child { padding-right: 0; }
+    #${PANEL_ID} .card-label {
+      font-size: 12px; font-weight: 600;
+      letter-spacing: 0.10em; text-transform: uppercase;
+      color: ${INK_3};
+      margin-bottom: 16px;
     }
-    #${PANEL_ID} .srow-value:hover { background: ${SURFACE_2}; }
-    #${PANEL_ID} .srow-value:focus { background: ${SURFACE_2}; border-color: ${ACCENT}; }
-
-    /* slider */
-    #${PANEL_ID} .slider {
-      -webkit-appearance: none; appearance: none;
-      width: 100%; height: 28px;
-      background: transparent; outline: none; cursor: pointer; padding: 0;
-    }
-    #${PANEL_ID} .slider::-webkit-slider-runnable-track {
-      height: 4px; background: ${SURFACE_3}; border-radius: 2px;
-    }
-    #${PANEL_ID} .slider::-moz-range-track {
-      height: 4px; background: ${SURFACE_3}; border-radius: 2px;
-    }
-    #${PANEL_ID} .slider::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      width: 16px; height: 16px; border-radius: 50%;
-      background: ${INK_1};
-      margin-top: -6px;
-      border: 2px solid ${SURFACE};
-      box-shadow: 0 0 0 1px ${INK_3};
-      cursor: grab;
-    }
-    #${PANEL_ID} .slider::-moz-range-thumb {
-      width: 16px; height: 16px; border-radius: 50%;
-      background: ${INK_1};
-      border: 2px solid ${SURFACE};
-      box-shadow: 0 0 0 1px ${INK_3};
-      cursor: grab;
-    }
-    #${PANEL_ID} .slider:hover::-webkit-slider-thumb {
-      background: ${ACCENT}; box-shadow: 0 0 0 1px ${ACCENT};
-    }
-    #${PANEL_ID} .slider:hover::-moz-range-thumb {
-      background: ${ACCENT}; box-shadow: 0 0 0 1px ${ACCENT};
-    }
-    #${PANEL_ID} .slider:focus-visible::-webkit-slider-thumb {
-      box-shadow: 0 0 0 2px ${ACCENT};
-    }
-    #${PANEL_ID} .slider:focus-visible::-moz-range-thumb {
-      box-shadow: 0 0 0 2px ${ACCENT};
-    }
-    #${PANEL_ID} .slider-stops {
-      display: flex; justify-content: space-between;
-      padding: 0 6px; margin-top: -2px; pointer-events: none;
-      font-size: 9px; color: ${INK_3}; letter-spacing: 0.04em;
-    }
-    #${PANEL_ID} .slider-stop {
-      width: 1px; height: 4px; background: ${SURFACE_3};
+    #${PANEL_ID} .card-empty {
+      color: ${INK_3}; font-size: 13px; padding: 8px 0;
     }
 
-    /* spacing matrix */
-    #${PANEL_ID} .matrices {
-      display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+    /* Property block: label / hero value / stepper */
+    #${PANEL_ID} .prop {
+      margin-bottom: 16px;
     }
-    #${PANEL_ID} .matrix {
-      background: ${SURFACE_2};
-      border: 1px solid ${BORDER};
-      border-radius: 8px;
-      padding: 10px;
+    #${PANEL_ID} .prop:last-child { margin-bottom: 0; }
+    #${PANEL_ID} .prop-label {
+      font-size: 13px; color: ${INK_2};
+      margin-bottom: 4px;
     }
+    #${PANEL_ID} .prop-hero {
+      font-size: 15px; font-weight: 500; color: ${INK_1};
+      margin-bottom: 6px; line-height: 1.2;
+    }
+
+    /* Stepper (◂ name ▸) */
+    #${PANEL_ID} .stepper {
+      display: flex; align-items: center;
+      height: 32px; gap: 2px;
+    }
+    #${PANEL_ID} .stepper-arr {
+      width: 28px; height: 28px;
+      background: transparent; border: 0; cursor: pointer;
+      color: ${INK_3}; font-size: 14px; line-height: 1;
+      border-radius: 6px;
+      display: inline-flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      transition: background 80ms, color 80ms;
+    }
+    #${PANEL_ID} .stepper-arr:hover { background: ${SURFACE_2}; color: ${INK_1}; }
+    #${PANEL_ID} .stepper-arr:disabled { opacity: 0.30; cursor: default; }
+    #${PANEL_ID} .stepper-arr:disabled:hover { background: transparent; color: ${INK_3}; }
+    #${PANEL_ID} .stepper-arr:focus-visible { outline: 2px solid ${ACCENT}; outline-offset: 1px; }
+    #${PANEL_ID} .stepper-name {
+      flex: 1; min-width: 0;
+      background: transparent; border: 1px solid transparent;
+      color: ${INK_2}; font: inherit; font-size: 13px;
+      padding: 4px 6px; border-radius: 6px;
+      cursor: pointer;
+      text-align: center; white-space: nowrap;
+      overflow: hidden; text-overflow: ellipsis;
+    }
+    #${PANEL_ID} .stepper-name:hover { color: ${INK_1}; background: ${SURFACE_2}; }
+    #${PANEL_ID} .stepper-name:focus-visible {
+      outline: 2px solid ${ACCENT}; outline-offset: 0;
+      background: ${SURFACE_2}; color: ${INK_1};
+    }
+    #${PANEL_ID} .stepper-name.is-empty { color: ${INK_3}; cursor: default; }
+    #${PANEL_ID} .stepper-name.is-input {
+      border-color: ${ACCENT};
+      background: ${SURFACE_2}; color: ${INK_1}; outline: none;
+    }
+
+    /* Spacing matrix */
     #${PANEL_ID} .matrix-title {
-      font-size: 11px; font-weight: 600; letter-spacing: 0.08em;
-      text-transform: uppercase; color: ${INK_3};
-      text-align: center; margin-bottom: 6px;
+      font-size: 12px; font-weight: 600;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      color: ${INK_3}; text-align: center;
+      margin-bottom: 8px;
     }
+    #${PANEL_ID} .matrix + .matrix-title { margin-top: 14px; }
     #${PANEL_ID} .matrix-grid {
       display: grid;
       grid-template-columns: 1fr 1fr 1fr;
-      grid-template-rows: 30px 30px 30px;
       gap: 4px;
       align-items: center; justify-items: center;
     }
-    #${PANEL_ID} .matrix-cell {
-      background: ${SURFACE_3};
-      border: 1px solid transparent;
-      border-radius: 4px;
-      color: ${INK_1};
-      font: inherit; font-size: 12px;
-      width: 56px; height: 28px;
-      text-align: center; outline: none;
-    }
-    #${PANEL_ID} .matrix-cell:hover { border-color: ${BORDER}; }
-    #${PANEL_ID} .matrix-cell:focus { border-color: ${ACCENT}; background: ${SURFACE_2}; }
-    #${PANEL_ID} .matrix-cell.is-zero { color: ${INK_3}; }
     #${PANEL_ID} .matrix-center {
-      width: 56px; height: 28px;
+      width: 60px; height: 24px;
       border: 1px dashed ${BORDER}; border-radius: 4px;
-      pointer-events: none;
     }
+    #${PANEL_ID} .mini-stepper {
+      display: flex; align-items: center;
+      width: 100%; max-width: 92px;
+      height: 28px;
+    }
+    #${PANEL_ID} .mini-stepper-arr {
+      width: 22px; height: 28px; background: transparent; border: 0; cursor: pointer;
+      color: ${INK_3}; font-size: 12px; line-height: 1; border-radius: 4px;
+      display: inline-flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      transition: color 80ms, background 80ms;
+    }
+    #${PANEL_ID} .mini-stepper-arr:hover { background: ${SURFACE_2}; color: ${INK_1}; }
+    #${PANEL_ID} .mini-stepper-arr:disabled { opacity: 0.30; cursor: default; }
+    #${PANEL_ID} .mini-stepper-arr:disabled:hover { background: transparent; color: ${INK_3}; }
+    #${PANEL_ID} .mini-stepper-arr:focus-visible { outline: 2px solid ${ACCENT}; outline-offset: 0; }
+    #${PANEL_ID} .mini-stepper-value {
+      flex: 1; min-width: 0;
+      background: transparent; border: 1px solid transparent;
+      color: ${INK_1}; font: inherit; font-size: 13px;
+      text-align: center;
+      padding: 4px 0; border-radius: 4px;
+      cursor: pointer; outline: none;
+    }
+    #${PANEL_ID} .mini-stepper-value:hover { background: ${SURFACE_2}; }
+    #${PANEL_ID} .mini-stepper-value:focus { background: ${SURFACE_2}; border-color: ${ACCENT}; }
+    #${PANEL_ID} .mini-stepper-value.is-zero { color: ${INK_3}; }
 
-    /* color row */
-    #${PANEL_ID} .crow {
-      display: grid;
-      grid-template-columns: 24px 80px 1fr 110px;
-      align-items: center; gap: 12px;
-      padding: 4px 0;
-      min-height: 36px;
+    /* Color block */
+    #${PANEL_ID} .color-prop {
+      margin-bottom: 16px;
     }
-    #${PANEL_ID} .crow-swatch {
+    #${PANEL_ID} .color-prop:last-child { margin-bottom: 0; }
+    #${PANEL_ID} .color-head {
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 6px;
+    }
+    #${PANEL_ID} .color-swatch {
       position: relative;
-      width: 24px; height: 24px; border-radius: 5px;
-      border: 1px solid ${BORDER};
+      width: 20px; height: 20px; border-radius: 5px;
+      border: 1px solid ${SURFACE_3};
       cursor: pointer;
+      flex-shrink: 0;
       transition: transform 100ms;
     }
-    #${PANEL_ID} .crow-swatch:hover { transform: scale(1.05); }
-    #${PANEL_ID} .crow-swatch input[type="color"] {
+    #${PANEL_ID} .color-swatch:hover { transform: scale(1.05); }
+    #${PANEL_ID} .color-swatch input[type="color"] {
       position: absolute; inset: 0; opacity: 0; cursor: pointer; border: 0;
       width: 100%; height: 100%;
     }
-    #${PANEL_ID} .crow-label { color: ${INK_2}; font-size: 13px; }
-    #${PANEL_ID} .crow-value {
-      color: ${INK_1}; font-size: 12px;
-      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    #${PANEL_ID} .color-label {
+      font-size: 13px; color: ${INK_2};
     }
-    #${PANEL_ID} .crow-chip {
-      color: ${INK_2}; font-size: 12px;
-      background: ${SURFACE_2}; padding: 4px 8px; border-radius: 4px;
-      cursor: pointer; text-align: center;
-      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-    }
-    #${PANEL_ID} .crow-chip:hover { color: ${INK_1}; background: ${SURFACE_3}; }
-    #${PANEL_ID} .crow-chip.is-empty { color: ${INK_3}; cursor: default; pointer-events: none; }
-
-    #${PANEL_ID} .empty-state {
-      color: ${INK_3}; padding: 20px 0; font-size: 13px; text-align: center;
+    #${PANEL_ID} .color-value {
+      font-size: 14px; font-weight: 500; color: ${INK_1};
+      margin-bottom: 6px; line-height: 1.2;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
   `;
   document.head.appendChild(style);
 }
 
-// ── Group order ───────────────────────────────────────────────────────────
+// ── Helpers ────────────────────────────────────────────────────────────────
 const TYPO_HINTS: PropKind[] = ['fontSize', 'fontWeight', 'lineHeight', 'letterSpacing'];
+const SURFACE_HINTS: PropKind[] = ['radius', 'shadow', 'opacity', 'duration'];
+
+const SHORT_LABEL: Record<string, string> = {
+  'font-size': 'Size',
+  'font-weight': 'Weight',
+  'line-height': 'Line',
+  'letter-spacing': 'Tracking',
+  color: 'Text',
+  'background-color': 'Background',
+  'border-radius': 'Radius',
+  'box-shadow': 'Shadow',
+  gap: 'Gap',
+};
+
+function shortLabel(prop: string): string {
+  return SHORT_LABEL[prop] ?? prop;
+}
+
+function formatTokenName(token: CachedToken | undefined): string {
+  if (!token) return '—';
+  if (token.path[0] === 'typography') return token.path.slice(1).join('.');
+  return token.path.join('.');
+}
 
 function tokenCandidates(hint: PropKind, ref: CachedToken | null): CachedToken[] {
   return tokens.filter((t) => {
@@ -516,13 +536,20 @@ function emitTokenUpdate(path: string[], value: TokenValue): void {
   }
 }
 
-function emitInspectSelect(prop: PropEntry): void {
-  if (!prop.tokens.length || !activeWs || activeWs.readyState !== activeWs.OPEN) return;
-  const items = prop.tokens.map((t) => ({ property: prop.prop, path: t.path }));
-  activeWs.send(JSON.stringify({ type: 'inspect-select', items }));
+function compactValue(v: string): string {
+  if (v === '0px' || v === '0em' || v === '0rem') return '0';
+  const m = v.match(/^(\d+(?:\.\d+)?)(px|rem|em)$/);
+  if (m && m[2] === 'px') return m[1]!;
+  return v;
 }
 
-// ── Builders ──────────────────────────────────────────────────────────────
+function formatHero(value: string): string {
+  // "16px" → "16 px", "0.5rem" → "0.5 rem"
+  const m = value.match(/^(-?\d+(?:\.\d+)?)(px|rem|em|%)$/);
+  if (m) return `${m[1]} ${m[2]}`;
+  return value;
+}
+
 function createEl<K extends keyof HTMLElementTagNameMap>(
   tag: K,
   className?: string,
@@ -532,228 +559,6 @@ function createEl<K extends keyof HTMLElementTagNameMap>(
   if (className) el.className = className;
   if (text !== undefined) el.textContent = text;
   return el;
-}
-
-const SHORT_LABEL: Record<string, string> = {
-  'font-size': 'Size',
-  'font-weight': 'Weight',
-  'line-height': 'Line',
-  'letter-spacing': 'Tracking',
-  color: 'Text',
-  'background-color': 'Background',
-  'border-radius': 'Radius',
-  'box-shadow': 'Shadow',
-  gap: 'Gap',
-  'padding-top': 'Top',
-  'padding-right': 'Right',
-  'padding-bottom': 'Bottom',
-  'padding-left': 'Left',
-  'margin-top': 'Top',
-  'margin-right': 'Right',
-  'margin-bottom': 'Bottom',
-  'margin-left': 'Left',
-};
-
-function shortLabel(prop: string): string {
-  return SHORT_LABEL[prop] ?? prop;
-}
-
-function formatTokenName(token: CachedToken | undefined): string {
-  if (!token) return '—';
-  // for typography sub-groups, drop the leading "typography."
-  if (token.path[0] === 'typography') return token.path.slice(1).join('.');
-  return token.path.join('.');
-}
-
-function buildSliderRow(prop: PropEntry): HTMLElement {
-  const row = createEl('div', 'srow');
-
-  // Label (short)
-  row.appendChild(createEl('span', 'srow-label', shortLabel(prop.prop)));
-
-  // Slider — snaps to candidate tokens
-  const candidates = tokenCandidates(prop.hint, prop.tokens[0] ?? null);
-  const slider = createEl('input', 'slider');
-  slider.type = 'range';
-  if (candidates.length >= 2) {
-    slider.min = '0';
-    slider.max = String(candidates.length - 1);
-    slider.step = '1';
-    const currentIdx = prop.tokens[0]
-      ? candidates.findIndex(
-          (c) => c.path.join('.') === prop.tokens[0]!.path.join('.'),
-        )
-      : 0;
-    slider.value = String(currentIdx >= 0 ? currentIdx : 0);
-    slider.setAttribute('aria-label', `${shortLabel(prop.prop)} value`);
-    slider.addEventListener('input', () => {
-      const idx = Number(slider.value);
-      const next = candidates[idx];
-      if (!next || !prop.tokens.length) return;
-      // The slider snaps to candidate values. We mutate the *active token's
-      // value* to the new candidate's value — the path stays the same so the
-      // chip still labels the same token, but its global value (and every
-      // element bound to it) shifts. That's the design-system semantic.
-      const active = prop.tokens[0]!;
-      input.value = valueAsString(next.value);
-      emitTokenUpdate(active.path, next.value);
-    });
-  } else {
-    slider.disabled = true;
-    slider.style.opacity = '0.3';
-  }
-  row.appendChild(slider);
-
-  // Token chip
-  const chip = createEl('button', 'srow-chip');
-  if (prop.tokens.length) {
-    chip.textContent = formatTokenName(prop.tokens[0]);
-    chip.title = `Show ${prop.tokens[0]!.path.join('.')} in panel`;
-    chip.addEventListener('click', () => emitInspectSelect(prop));
-  } else {
-    chip.classList.add('is-empty');
-    chip.textContent = '—';
-  }
-  row.appendChild(chip);
-
-  // Value input (free-form)
-  const input = createEl('input', 'srow-value');
-  input.type = 'text';
-  input.value = prop.value;
-  input.setAttribute('aria-label', `${shortLabel(prop.prop)} raw value`);
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') input.blur();
-    if (e.key === 'Escape') {
-      input.value = prop.value;
-      input.blur();
-    }
-  });
-  input.addEventListener('change', () => {
-    if (prop.tokens.length) emitTokenUpdate(prop.tokens[0]!.path, input.value);
-  });
-  row.appendChild(input);
-
-  return row;
-}
-
-function buildSpacingMatrices(props: PropEntry[]): HTMLElement {
-  const wrap = createEl('div', 'matrices');
-
-  function buildMatrix(title: string, sides: Record<'top' | 'right' | 'bottom' | 'left', PropEntry | undefined>): HTMLElement {
-    const matrix = createEl('div', 'matrix');
-    const t = createEl('div', 'matrix-title', title);
-    matrix.appendChild(t);
-    const grid = createEl('div', 'matrix-grid');
-
-    function makeCell(prop: PropEntry | undefined): HTMLElement {
-      const cell = createEl('input', 'matrix-cell');
-      cell.type = 'text';
-      if (!prop) {
-        cell.value = '0';
-        cell.disabled = true;
-        cell.classList.add('is-zero');
-        return cell;
-      }
-      cell.value = compactValue(prop.value);
-      cell.title = prop.tokens.length
-        ? `${prop.prop}: ${prop.tokens[0]!.path.join('.')}`
-        : prop.prop;
-      if (cell.value === '0' || cell.value === '0px') cell.classList.add('is-zero');
-      cell.setAttribute('aria-label', prop.prop);
-      cell.addEventListener('focus', () => cell.select());
-      cell.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') cell.blur();
-        if (e.key === 'Escape') {
-          cell.value = compactValue(prop.value);
-          cell.blur();
-        }
-      });
-      cell.addEventListener('change', () => {
-        if (!prop.tokens.length) return;
-        emitTokenUpdate(prop.tokens[0]!.path, cell.value);
-      });
-      return cell;
-    }
-
-    function placeholder(): HTMLElement {
-      return createEl('span');
-    }
-
-    // 3x3 grid: corners empty, edges hold values, center is element preview
-    grid.appendChild(placeholder());
-    grid.appendChild(makeCell(sides.top));
-    grid.appendChild(placeholder());
-    grid.appendChild(makeCell(sides.left));
-    grid.appendChild(createEl('span', 'matrix-center'));
-    grid.appendChild(makeCell(sides.right));
-    grid.appendChild(placeholder());
-    grid.appendChild(makeCell(sides.bottom));
-    grid.appendChild(placeholder());
-    matrix.appendChild(grid);
-    return matrix;
-  }
-
-  function findProp(prefix: string, side: string): PropEntry | undefined {
-    return props.find((p) => p.prop === `${prefix}-${side}`);
-  }
-
-  wrap.appendChild(
-    buildMatrix('Padding', {
-      top: findProp('padding', 'top'),
-      right: findProp('padding', 'right'),
-      bottom: findProp('padding', 'bottom'),
-      left: findProp('padding', 'left'),
-    }),
-  );
-  wrap.appendChild(
-    buildMatrix('Margin', {
-      top: findProp('margin', 'top'),
-      right: findProp('margin', 'right'),
-      bottom: findProp('margin', 'bottom'),
-      left: findProp('margin', 'left'),
-    }),
-  );
-  return wrap;
-}
-
-function compactValue(v: string): string {
-  // "16px" → "16", "0.5rem" → "0.5rem" (keep), "0px" → "0"
-  if (v === '0px' || v === '0em' || v === '0rem') return '0';
-  const m = v.match(/^(\d+)px$/);
-  if (m) return m[1]!;
-  return v;
-}
-
-function buildColorRow(prop: PropEntry): HTMLElement {
-  const row = createEl('div', 'crow');
-  const swatch = createEl('span', 'crow-swatch');
-  swatch.style.background = prop.value;
-  const colorInput = createEl('input');
-  colorInput.type = 'color';
-  colorInput.value = parseHex(prop.value) ?? '#000000';
-  colorInput.addEventListener('input', () => {
-    swatch.style.background = colorInput.value;
-    if (prop.tokens.length) emitTokenUpdate(prop.tokens[0]!.path, colorInput.value);
-  });
-  swatch.appendChild(colorInput);
-  row.appendChild(swatch);
-
-  row.appendChild(createEl('span', 'crow-label', shortLabel(prop.prop)));
-  row.appendChild(createEl('span', 'crow-value', prop.value));
-
-  const chip = createEl('button');
-  if (prop.tokens.length) {
-    chip.className = 'crow-chip';
-    chip.textContent = formatTokenName(prop.tokens[0]);
-    chip.title = `Show ${prop.tokens[0]!.path.join('.')} in panel`;
-    chip.addEventListener('click', () => emitInspectSelect(prop));
-  } else {
-    chip.className = 'crow-chip is-empty';
-    chip.textContent = '—';
-  }
-  row.appendChild(chip);
-
-  return row;
 }
 
 function parseHex(value: string): string | null {
@@ -772,6 +577,412 @@ function parseHex(value: string): string | null {
   return `#${hex(parts[0]!)}${hex(parts[1]!)}${hex(parts[2]!)}`;
 }
 
+// ── Stepper builders ───────────────────────────────────────────────────────
+interface StepperState {
+  candidates: CachedToken[];
+  index: number; // -1 if no current candidate
+}
+
+function initStepperState(prop: PropEntry): StepperState {
+  const candidates = tokenCandidates(prop.hint, prop.tokens[0] ?? null);
+  let index = -1;
+  if (prop.tokens[0]) {
+    index = candidates.findIndex(
+      (c) => c.path.join('.') === prop.tokens[0]!.path.join('.'),
+    );
+  }
+  return { candidates, index };
+}
+
+function buildPropertyBlock(prop: PropEntry): HTMLElement {
+  const block = createEl('div', 'prop');
+  block.appendChild(createEl('div', 'prop-label', shortLabel(prop.prop)));
+  const hero = createEl('div', 'prop-hero', formatHero(prop.value));
+  block.appendChild(hero);
+
+  const stepper = createEl('div', 'stepper');
+  const prev = createEl('button', 'stepper-arr', '◂');
+  prev.type = 'button';
+  prev.setAttribute('aria-label', `Previous ${shortLabel(prop.prop)}`);
+  const name = createEl('button', 'stepper-name');
+  name.type = 'button';
+  const next = createEl('button', 'stepper-arr', '▸');
+  next.type = 'button';
+  next.setAttribute('aria-label', `Next ${shortLabel(prop.prop)}`);
+
+  const state = initStepperState(prop);
+
+  function refresh() {
+    if (state.candidates.length < 2 || state.index < 0) {
+      prev.disabled = true;
+      next.disabled = true;
+    } else {
+      prev.disabled = state.index <= 0;
+      next.disabled = state.index >= state.candidates.length - 1;
+    }
+    if (state.index >= 0) {
+      const cur = state.candidates[state.index]!;
+      name.textContent = formatTokenName(cur);
+      name.classList.remove('is-empty');
+      name.title = cur.path.join('.');
+    } else {
+      name.textContent = '—';
+      name.classList.add('is-empty');
+      name.title = '';
+    }
+  }
+
+  function step(delta: number) {
+    if (!prop.tokens[0]) return;
+    const newIdx = state.index + delta;
+    if (newIdx < 0 || newIdx >= state.candidates.length) return;
+    state.index = newIdx;
+    const target = state.candidates[newIdx]!;
+    hero.textContent = formatHero(valueAsString(target.value));
+    refresh();
+    emitTokenUpdate(prop.tokens[0].path, target.value);
+  }
+
+  prev.addEventListener('click', () => step(-1));
+  next.addEventListener('click', () => step(+1));
+
+  // Click name → swap to text input for custom value
+  name.addEventListener('click', () => {
+    if (!prop.tokens[0]) return;
+    enterTextEdit(name, prop.value, (next) => {
+      hero.textContent = formatHero(next);
+      emitTokenUpdate(prop.tokens[0]!.path, next);
+    });
+  });
+
+  stepper.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      step(-1);
+    }
+    if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      step(+1);
+    }
+  });
+
+  stepper.appendChild(prev);
+  stepper.appendChild(name);
+  stepper.appendChild(next);
+  block.appendChild(stepper);
+
+  refresh();
+  return block;
+}
+
+function enterTextEdit(
+  nameBtn: HTMLButtonElement,
+  initial: string,
+  commit: (next: string) => void,
+): void {
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = initial;
+  input.className = 'stepper-name is-input';
+  input.style.flex = '1';
+  nameBtn.replaceWith(input);
+  input.focus();
+  input.select();
+  function done(submit: boolean) {
+    if (submit && input.value !== initial) commit(input.value);
+    input.replaceWith(nameBtn);
+  }
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      done(true);
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      done(false);
+    }
+  });
+  input.addEventListener('blur', () => done(true));
+}
+
+// ── Spacing matrix ─────────────────────────────────────────────────────────
+function buildMiniStepper(maybeProp: PropEntry | undefined): HTMLElement {
+  const wrap = createEl('div', 'mini-stepper');
+  if (!maybeProp) {
+    const empty = createEl('span', 'mini-stepper-value is-zero', '—');
+    empty.style.flex = '1';
+    wrap.appendChild(empty);
+    return wrap;
+  }
+  const prop: PropEntry = maybeProp;
+
+  const prev = createEl('button', 'mini-stepper-arr', '◂');
+  prev.type = 'button';
+  prev.setAttribute('aria-label', `Decrease ${prop.prop}`);
+  const value = createEl('input', 'mini-stepper-value');
+  value.type = 'text';
+  value.value = compactValue(prop.value);
+  value.setAttribute('aria-label', prop.prop);
+  if (value.value === '0') value.classList.add('is-zero');
+  if (prop.tokens.length) {
+    value.title = `${prop.prop}: ${prop.tokens[0]!.path.join('.')}`;
+  } else {
+    value.title = prop.prop;
+  }
+  const next = createEl('button', 'mini-stepper-arr', '▸');
+  next.type = 'button';
+  next.setAttribute('aria-label', `Increase ${prop.prop}`);
+
+  const state = initStepperState(prop);
+
+  function refresh() {
+    if (state.candidates.length < 2 || state.index < 0) {
+      prev.disabled = true;
+      next.disabled = true;
+    } else {
+      prev.disabled = state.index <= 0;
+      next.disabled = state.index >= state.candidates.length - 1;
+    }
+  }
+
+  function step(delta: number) {
+    if (!prop.tokens[0]) return;
+    const newIdx = state.index + delta;
+    if (newIdx < 0 || newIdx >= state.candidates.length) return;
+    state.index = newIdx;
+    const target = state.candidates[newIdx]!;
+    const newDisplay = compactValue(valueAsString(target.value));
+    value.value = newDisplay;
+    value.classList.toggle('is-zero', newDisplay === '0');
+    refresh();
+    emitTokenUpdate(prop.tokens[0].path, target.value);
+  }
+
+  prev.addEventListener('click', () => step(-1));
+  next.addEventListener('click', () => step(+1));
+  value.addEventListener('focus', () => value.select());
+  value.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      step(-1);
+    }
+    if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      step(+1);
+    }
+    if (e.key === 'Enter') value.blur();
+    if (e.key === 'Escape') {
+      value.value = compactValue(prop.value);
+      value.blur();
+    }
+  });
+  value.addEventListener('change', () => {
+    if (!prop.tokens.length) return;
+    emitTokenUpdate(prop.tokens[0]!.path, value.value);
+  });
+
+  wrap.appendChild(prev);
+  wrap.appendChild(value);
+  wrap.appendChild(next);
+  refresh();
+  return wrap;
+}
+
+function buildSpacingCross(
+  title: string,
+  sides: Record<'top' | 'right' | 'bottom' | 'left', PropEntry | undefined>,
+): HTMLElement {
+  const wrap = createEl('div');
+  wrap.appendChild(createEl('div', 'matrix-title', title));
+  const grid = createEl('div', 'matrix-grid');
+  function placeholder() {
+    return createEl('span');
+  }
+  grid.appendChild(placeholder());
+  grid.appendChild(buildMiniStepper(sides.top));
+  grid.appendChild(placeholder());
+  grid.appendChild(buildMiniStepper(sides.left));
+  grid.appendChild(createEl('div', 'matrix-center'));
+  grid.appendChild(buildMiniStepper(sides.right));
+  grid.appendChild(placeholder());
+  grid.appendChild(buildMiniStepper(sides.bottom));
+  grid.appendChild(placeholder());
+  wrap.appendChild(grid);
+  return wrap;
+}
+
+// ── Color card ─────────────────────────────────────────────────────────────
+function buildColorBlock(prop: PropEntry): HTMLElement {
+  const block = createEl('div', 'color-prop');
+
+  const head = createEl('div', 'color-head');
+  const swatch = createEl('span', 'color-swatch');
+  swatch.style.background = prop.value;
+  const colorInput = createEl('input');
+  colorInput.type = 'color';
+  colorInput.value = parseHex(prop.value) ?? '#000000';
+  swatch.appendChild(colorInput);
+  head.appendChild(swatch);
+  head.appendChild(createEl('span', 'color-label', shortLabel(prop.prop)));
+  block.appendChild(head);
+
+  const value = createEl('div', 'color-value', prop.value);
+  block.appendChild(value);
+
+  const stepper = createEl('div', 'stepper');
+  const prev = createEl('button', 'stepper-arr', '◂');
+  prev.type = 'button';
+  prev.setAttribute('aria-label', `Previous color`);
+  const name = createEl('button', 'stepper-name');
+  name.type = 'button';
+  const next = createEl('button', 'stepper-arr', '▸');
+  next.type = 'button';
+  next.setAttribute('aria-label', `Next color`);
+
+  const state = initStepperState(prop);
+
+  function refresh() {
+    if (state.candidates.length < 2 || state.index < 0) {
+      prev.disabled = true;
+      next.disabled = true;
+    } else {
+      prev.disabled = state.index <= 0;
+      next.disabled = state.index >= state.candidates.length - 1;
+    }
+    if (state.index >= 0) {
+      const cur = state.candidates[state.index]!;
+      name.textContent = formatTokenName(cur);
+      name.classList.remove('is-empty');
+    } else {
+      name.textContent = '—';
+      name.classList.add('is-empty');
+    }
+  }
+
+  function step(delta: number) {
+    if (!prop.tokens[0]) return;
+    const newIdx = state.index + delta;
+    if (newIdx < 0 || newIdx >= state.candidates.length) return;
+    state.index = newIdx;
+    const target = state.candidates[newIdx]!;
+    const next = valueAsString(target.value);
+    value.textContent = next;
+    swatch.style.background = next;
+    colorInput.value = parseHex(next) ?? colorInput.value;
+    refresh();
+    emitTokenUpdate(prop.tokens[0].path, target.value);
+  }
+
+  prev.addEventListener('click', () => step(-1));
+  next.addEventListener('click', () => step(+1));
+  stepper.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      step(-1);
+    }
+    if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      step(+1);
+    }
+  });
+
+  colorInput.addEventListener('input', () => {
+    swatch.style.background = colorInput.value;
+    value.textContent = colorInput.value;
+    if (prop.tokens.length) emitTokenUpdate(prop.tokens[0]!.path, colorInput.value);
+  });
+
+  stepper.appendChild(prev);
+  stepper.appendChild(name);
+  stepper.appendChild(next);
+  block.appendChild(stepper);
+
+  refresh();
+  return block;
+}
+
+// ── Card builders ──────────────────────────────────────────────────────────
+function buildCard(label: string, content: HTMLElement | null, isEmpty: boolean): HTMLElement {
+  const card = createEl('section', 'card');
+  card.appendChild(createEl('div', 'card-label', label));
+  if (isEmpty || !content) {
+    card.appendChild(createEl('div', 'card-empty', '—'));
+    return card;
+  }
+  card.appendChild(content);
+  return card;
+}
+
+function buildTypographyCard(props: PropEntry[]): HTMLElement {
+  if (!props.length) return buildCard('Typography', null, true);
+  const inner = document.createDocumentFragment();
+  for (const p of props) inner.appendChild(buildPropertyBlock(p));
+  const card = createEl('section', 'card');
+  card.appendChild(createEl('div', 'card-label', 'Typography'));
+  card.appendChild(inner as unknown as Node);
+  // documentFragment loses ref, rebuild simply:
+  const card2 = createEl('section', 'card');
+  card2.appendChild(createEl('div', 'card-label', 'Typography'));
+  for (const p of props) card2.appendChild(buildPropertyBlock(p));
+  return card2;
+}
+
+function buildSpacingCard(spacingProps: PropEntry[], gapProp: PropEntry | undefined): HTMLElement {
+  const findSide = (prefix: string, side: string) =>
+    spacingProps.find((p) => p.prop === `${prefix}-${side}`);
+  const hasPadding = ['top', 'right', 'bottom', 'left'].some((s) => !!findSide('padding', s));
+  const hasMargin = ['top', 'right', 'bottom', 'left'].some((s) => !!findSide('margin', s));
+
+  if (!hasPadding && !hasMargin && !gapProp) return buildCard('Spacing', null, true);
+
+  const card = createEl('section', 'card');
+  card.appendChild(createEl('div', 'card-label', 'Spacing'));
+
+  if (hasPadding) {
+    card.appendChild(
+      buildSpacingCross('Padding', {
+        top: findSide('padding', 'top'),
+        right: findSide('padding', 'right'),
+        bottom: findSide('padding', 'bottom'),
+        left: findSide('padding', 'left'),
+      }),
+    );
+  }
+  if (hasMargin) {
+    card.appendChild(
+      buildSpacingCross('Margin', {
+        top: findSide('margin', 'top'),
+        right: findSide('margin', 'right'),
+        bottom: findSide('margin', 'bottom'),
+        left: findSide('margin', 'left'),
+      }),
+    );
+  }
+  if (gapProp) {
+    const gapBlock = buildPropertyBlock(gapProp);
+    gapBlock.style.marginTop = '14px';
+    card.appendChild(gapBlock);
+  }
+  return card;
+}
+
+function buildColorCard(props: PropEntry[]): HTMLElement {
+  if (!props.length) return buildCard('Color', null, true);
+  const card = createEl('section', 'card');
+  card.appendChild(createEl('div', 'card-label', 'Color'));
+  for (const p of props) card.appendChild(buildColorBlock(p));
+  return card;
+}
+
+function buildSurfaceCard(props: PropEntry[]): HTMLElement {
+  if (!props.length) return buildCard('Surface', null, true);
+  const card = createEl('section', 'card');
+  card.appendChild(createEl('div', 'card-label', 'Surface'));
+  for (const p of props) card.appendChild(buildPropertyBlock(p));
+  return card;
+}
+
+// ── Panel ──────────────────────────────────────────────────────────────────
 function buildEditPanel(el: Element, props: PropEntry[]): HTMLElement {
   const panel = createEl('div');
   panel.id = PANEL_ID;
@@ -789,6 +1000,7 @@ function buildEditPanel(el: Element, props: PropEntry[]): HTMLElement {
     ),
   );
   const close = createEl('button', 'hdr-close', '✕');
+  close.type = 'button';
   close.setAttribute('aria-label', 'Close edit panel');
   close.addEventListener('click', removeEditPanel);
   hdr.appendChild(title);
@@ -797,63 +1009,22 @@ function buildEditPanel(el: Element, props: PropEntry[]): HTMLElement {
 
   panel.appendChild(createEl('div', 'divider'));
 
-  let renderedAny = false;
+  // Strip — four cards always rendered (with "—" empty state for missing categories)
+  const strip = createEl('div', 'strip');
 
-  // Typography group
   const typoProps = props.filter((p) => TYPO_HINTS.includes(p.hint));
-  if (typoProps.length) {
-    const grp = createEl('div', 'grp');
-    grp.appendChild(createEl('div', 'grp-label', 'Typography'));
-    for (const p of typoProps) grp.appendChild(buildSliderRow(p));
-    panel.appendChild(grp);
-    renderedAny = true;
-  }
-
-  // Spacing group — box matrices
   const spacingProps = props.filter((p) => p.hint === 'spacing');
-  const hasPadding = spacingProps.some((p) => p.prop.startsWith('padding'));
-  const hasMargin = spacingProps.some((p) => p.prop.startsWith('margin'));
-  if (hasPadding || hasMargin) {
-    const grp = createEl('div', 'grp');
-    grp.appendChild(createEl('div', 'grp-label', 'Spacing'));
-    grp.appendChild(buildSpacingMatrices(spacingProps));
-    // Gap row if present
-    const gap = spacingProps.find((p) => p.prop === 'gap');
-    if (gap) {
-      const gapWrap = createEl('div');
-      gapWrap.style.marginTop = '12px';
-      gapWrap.appendChild(buildSliderRow(gap));
-      grp.appendChild(gapWrap);
-    }
-    panel.appendChild(grp);
-    renderedAny = true;
-  }
-
-  // Color group
   const colorProps = props.filter((p) => p.hint === 'color');
-  if (colorProps.length) {
-    const grp = createEl('div', 'grp');
-    grp.appendChild(createEl('div', 'grp-label', 'Color'));
-    for (const p of colorProps) grp.appendChild(buildColorRow(p));
-    panel.appendChild(grp);
-    renderedAny = true;
-  }
+  const surfaceProps = props.filter((p) => SURFACE_HINTS.includes(p.hint));
+  const gapProp = spacingProps.find((p) => p.prop === 'gap');
+  const sideSpacing = spacingProps.filter((p) => p.prop !== 'gap');
 
-  // Radius / shadow / opacity / duration — slider rows
-  const otherProps = props.filter(
-    (p) => p.hint === 'radius' || p.hint === 'shadow' || p.hint === 'opacity' || p.hint === 'duration',
-  );
-  if (otherProps.length) {
-    const grp = createEl('div', 'grp');
-    grp.appendChild(createEl('div', 'grp-label', 'Surface'));
-    for (const p of otherProps) grp.appendChild(buildSliderRow(p));
-    panel.appendChild(grp);
-    renderedAny = true;
-  }
+  strip.appendChild(buildTypographyCard(typoProps));
+  strip.appendChild(buildSpacingCard(sideSpacing, gapProp));
+  strip.appendChild(buildColorCard(colorProps));
+  strip.appendChild(buildSurfaceCard(surfaceProps));
 
-  if (!renderedAny) {
-    panel.appendChild(createEl('div', 'empty-state', 'No inspectable styles on this element.'));
-  }
+  panel.appendChild(strip);
 
   return panel;
 }
@@ -873,9 +1044,8 @@ function showEditPanel(el: Element): void {
 function positionEditPanel(panel: HTMLElement, el: Element): void {
   const r = el.getBoundingClientRect();
   const pr = panel.getBoundingClientRect();
-  // Always anchor below the clicked element — never flip above. If the panel
-  // would clip the viewport bottom, scoot it up just enough to stay onscreen,
-  // even if that means overlapping the element a bit.
+  // Always anchor below — never flip above. Slide up only as a last resort
+  // to keep the panel onscreen.
   let top = r.bottom + 12;
   const maxTop = window.innerHeight - pr.height - 8;
   if (maxTop > 8 && top > maxTop) top = maxTop;
