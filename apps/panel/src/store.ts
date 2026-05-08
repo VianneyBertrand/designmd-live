@@ -18,10 +18,14 @@ interface DesignState {
   dirty: boolean;
   externalChange: boolean;
   error: string | null;
+  inspectMode: boolean;
+  highlightedPaths: string[]; // joined paths to highlight after a click
   load: () => Promise<void>;
   setTokenValue: (path: string[], value: TokenValue) => void;
   save: () => Promise<void>;
   dismissExternalChange: () => void;
+  toggleInspectMode: () => void;
+  clearHighlights: () => void;
 }
 
 export const useDesign = create<DesignState>((set, get) => ({
@@ -32,8 +36,18 @@ export const useDesign = create<DesignState>((set, get) => ({
   dirty: false,
   externalChange: false,
   error: null,
+  inspectMode: false,
+  highlightedPaths: [],
 
   dismissExternalChange: () => set({ externalChange: false }),
+
+  toggleInspectMode: () => {
+    const next = !get().inspectMode;
+    set({ inspectMode: next, highlightedPaths: [] });
+    broadcast({ type: 'inspect-mode', enabled: next });
+  },
+
+  clearHighlights: () => set({ highlightedPaths: [] }),
 
   load: async () => {
     set({ status: 'loading', error: null });
@@ -91,11 +105,34 @@ export const useDesign = create<DesignState>((set, get) => ({
 
 // React to external file edits surfaced by the CLI watcher.
 onWsMessage((msg: Incoming) => {
-  if (msg.type !== 'snapshot' || msg.source !== 'watcher') return;
-  const state = useDesign.getState();
-  if (state.dirty) {
-    useDesign.setState({ externalChange: true });
+  if (msg.type === 'snapshot' && msg.source === 'watcher') {
+    const state = useDesign.getState();
+    if (state.dirty) {
+      useDesign.setState({ externalChange: true });
+      return;
+    }
+    void state.load();
     return;
   }
-  void state.load();
+  if (msg.type === 'inspect-mode') {
+    useDesign.setState({ inspectMode: msg.enabled });
+    return;
+  }
+  if (msg.type === 'inspect-select') {
+    const paths = msg.items.map((i) => i.path.join('.'));
+    useDesign.setState({ highlightedPaths: paths });
+    requestAnimationFrame(() => {
+      const first = paths[0];
+      if (!first) return;
+      const el = document.querySelector(`[data-token="${cssEscape(first)}"]`);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  }
 });
+
+function cssEscape(value: string): string {
+  if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') {
+    return CSS.escape(value);
+  }
+  return value.replace(/(["\\\\])/g, '\\\\$1');
+}

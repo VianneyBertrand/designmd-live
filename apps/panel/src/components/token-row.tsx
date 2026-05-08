@@ -35,8 +35,15 @@ export function TokenRow({ token }: Props) {
     }
   };
 
+  const highlighted = useDesign((s) => s.highlightedPaths.includes(name));
+
   return (
-    <li className="flex items-center gap-3 border-b border-border py-2 last:border-b-0">
+    <li
+      data-token={name}
+      className={`flex items-center gap-3 border-b border-border py-2 transition-colors last:border-b-0 ${
+        highlighted ? '-mx-3 rounded bg-amber-500/15 px-3' : ''
+      }`}
+    >
       <Sample token={token} onChange={handleChange} />
       <div className="flex flex-1 flex-col">
         <span className="font-mono text-xs text-foreground">{name}</span>

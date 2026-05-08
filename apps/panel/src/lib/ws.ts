@@ -4,12 +4,20 @@ export type Outgoing =
   | { type: 'hello'; role: 'panel' }
   | { type: 'token-update'; path: string[]; value: TokenValue }
   | { type: 'snapshot'; tokens: Pick<FlatToken, 'path' | 'value'>[] }
-  | { type: 'reset' };
+  | { type: 'reset' }
+  | { type: 'inspect-mode'; enabled: boolean };
+
+export interface InspectSelectItem {
+  property: string;
+  path: string[];
+}
 
 export type Incoming =
   | { type: 'snapshot'; tokens: Pick<FlatToken, 'path' | 'value'>[]; source?: string }
   | { type: 'token-update'; path: string[]; value: TokenValue }
-  | { type: 'reset' };
+  | { type: 'reset' }
+  | { type: 'inspect-mode'; enabled: boolean }
+  | { type: 'inspect-select'; items: InspectSelectItem[] };
 
 export type WsStatus = 'connecting' | 'open' | 'closed';
 

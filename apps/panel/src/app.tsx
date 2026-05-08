@@ -13,9 +13,11 @@ export function App() {
     dirty,
     externalChange,
     error,
+    inspectMode,
     load,
     save,
     dismissExternalChange,
+    toggleInspectMode,
   } = useDesign();
 
   useEffect(() => {
@@ -32,8 +34,20 @@ export function App() {
             Tweak your DESIGN.md, see your real app react.
           </p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <ConnectionDot />
+          <button
+            type="button"
+            onClick={toggleInspectMode}
+            className={`rounded-md border px-3 py-1.5 text-xs font-medium transition ${
+              inspectMode
+                ? 'border-amber-500/40 bg-amber-500/15 text-amber-600 dark:text-amber-300'
+                : 'border-border bg-background text-foreground hover:bg-muted'
+            }`}
+            aria-pressed={inspectMode}
+          >
+            {inspectMode ? '◉ Inspecting' : '◎ Inspect'}
+          </button>
           <SaveControls dirty={dirty} saveStatus={saveStatus} onSave={save} />
         </div>
       </header>
