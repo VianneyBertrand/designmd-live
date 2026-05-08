@@ -37,6 +37,12 @@ const OVERLAY_ID = 'designmd-live-overlay';
 const LABEL_ID = 'designmd-live-label';
 const PANEL_ID = 'designmd-live-edit-panel';
 const STYLES_ID = 'designmd-live-edit-styles';
+const DROPDOWN_ID = 'designmd-live-dropdown';
+
+const CHEVRON_LEFT = '<svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 14L8 10L12 6"/></svg>';
+const CHEVRON_RIGHT = '<svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6L12 10L8 14"/></svg>';
+const CHEVRON_LEFT_SM = '<svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 14L8 10L12 6"/></svg>';
+const CHEVRON_RIGHT_SM = '<svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6L12 10L8 14"/></svg>';
 
 const ACCENT = 'oklch(0.82 0.16 75)';
 const SURFACE = 'oklch(0.13 0.005 250)';
@@ -377,43 +383,50 @@ function ensureEditStyles(): void {
       margin-bottom: 6px; line-height: 1.2;
     }
 
-    /* Stepper (◂ name ▸) */
+    /* Stepper — name (left, opens dropdown) + chevron group (right, side-by-side) */
     #${PANEL_ID} .stepper {
-      display: flex; align-items: center;
-      height: 32px; gap: 2px;
+      display: flex; align-items: stretch;
+      height: 34px;
+      border: 1px solid ${BORDER_SOFT};
+      border-radius: 6px;
+      background: ${SURFACE};
+      transition: border-color 80ms;
+    }
+    #${PANEL_ID} .stepper:hover { border-color: ${BORDER}; }
+    #${PANEL_ID} .stepper-name {
+      flex: 1; min-width: 0;
+      background: transparent; border: 0;
+      color: ${INK_2}; font: inherit; font-size: 13px;
+      padding: 0 10px;
+      cursor: pointer; outline: none;
+      text-align: left;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      border-radius: 5px 0 0 5px;
+    }
+    #${PANEL_ID} .stepper-name:hover { color: ${INK_1}; background: ${SURFACE_2}; }
+    #${PANEL_ID} .stepper-name:focus-visible {
+      outline: 2px solid ${ACCENT}; outline-offset: -2px;
+      background: ${SURFACE_2}; color: ${INK_1};
+    }
+    #${PANEL_ID} .stepper-name.is-empty { color: ${INK_3}; cursor: default; }
+    #${PANEL_ID} .stepper-arrows {
+      display: flex; border-left: 1px solid ${BORDER_SOFT};
     }
     #${PANEL_ID} .stepper-arr {
-      width: 28px; height: 28px;
-      background: transparent; border: 0; cursor: pointer;
-      color: ${INK_3}; font-size: 14px; line-height: 1;
-      border-radius: 6px;
+      width: 32px; padding: 0; border: 0;
+      background: transparent;
+      color: ${INK_3};
+      cursor: pointer; outline: none;
       display: inline-flex; align-items: center; justify-content: center;
       flex-shrink: 0;
       transition: background 80ms, color 80ms;
     }
+    #${PANEL_ID} .stepper-arr svg { display: block; }
     #${PANEL_ID} .stepper-arr:hover { background: ${SURFACE_2}; color: ${INK_1}; }
-    #${PANEL_ID} .stepper-arr:disabled { opacity: 0.30; cursor: default; }
+    #${PANEL_ID} .stepper-arr:focus-visible { outline: 2px solid ${ACCENT}; outline-offset: -2px; }
+    #${PANEL_ID} .stepper-arr:disabled { color: ${INK_3}; opacity: 0.30; cursor: default; }
     #${PANEL_ID} .stepper-arr:disabled:hover { background: transparent; color: ${INK_3}; }
-    #${PANEL_ID} .stepper-arr:focus-visible { outline: 2px solid ${ACCENT}; outline-offset: 1px; }
-    #${PANEL_ID} .stepper-name {
-      flex: 1; min-width: 0;
-      background: transparent; border: 1px solid transparent;
-      color: ${INK_2}; font: inherit; font-size: 13px;
-      padding: 4px 6px; border-radius: 6px;
-      cursor: pointer;
-      text-align: center; white-space: nowrap;
-      overflow: hidden; text-overflow: ellipsis;
-    }
-    #${PANEL_ID} .stepper-name:hover { color: ${INK_1}; background: ${SURFACE_2}; }
-    #${PANEL_ID} .stepper-name:focus-visible {
-      outline: 2px solid ${ACCENT}; outline-offset: 0;
-      background: ${SURFACE_2}; color: ${INK_1};
-    }
-    #${PANEL_ID} .stepper-name.is-empty { color: ${INK_3}; cursor: default; }
-    #${PANEL_ID} .stepper-name.is-input {
-      border-color: ${ACCENT};
-      background: ${SURFACE_2}; color: ${INK_1}; outline: none;
-    }
+    #${PANEL_ID} .stepper-arr-next { border-left: 1px solid ${BORDER_SOFT}; border-radius: 0 5px 5px 0; }
 
     /* Spacing matrix */
     #${PANEL_ID} .matrix-title {
@@ -434,32 +447,72 @@ function ensureEditStyles(): void {
       border: 1px dashed ${BORDER}; border-radius: 4px;
     }
     #${PANEL_ID} .mini-stepper {
-      display: flex; align-items: center;
-      width: 100%; max-width: 92px;
-      height: 28px;
+      display: flex; align-items: stretch;
+      width: 100%; max-width: 100px;
+      height: 30px;
+      border: 1px solid ${BORDER_SOFT};
+      border-radius: 5px;
+      background: ${SURFACE};
     }
-    #${PANEL_ID} .mini-stepper-arr {
-      width: 22px; height: 28px; background: transparent; border: 0; cursor: pointer;
-      color: ${INK_3}; font-size: 12px; line-height: 1; border-radius: 4px;
-      display: inline-flex; align-items: center; justify-content: center;
-      flex-shrink: 0;
-      transition: color 80ms, background 80ms;
-    }
-    #${PANEL_ID} .mini-stepper-arr:hover { background: ${SURFACE_2}; color: ${INK_1}; }
-    #${PANEL_ID} .mini-stepper-arr:disabled { opacity: 0.30; cursor: default; }
-    #${PANEL_ID} .mini-stepper-arr:disabled:hover { background: transparent; color: ${INK_3}; }
-    #${PANEL_ID} .mini-stepper-arr:focus-visible { outline: 2px solid ${ACCENT}; outline-offset: 0; }
+    #${PANEL_ID} .mini-stepper:hover { border-color: ${BORDER}; }
     #${PANEL_ID} .mini-stepper-value {
       flex: 1; min-width: 0;
-      background: transparent; border: 1px solid transparent;
+      background: transparent; border: 0;
       color: ${INK_1}; font: inherit; font-size: 13px;
-      text-align: center;
-      padding: 4px 0; border-radius: 4px;
-      cursor: pointer; outline: none;
+      text-align: center; outline: none;
+      padding: 0 4px;
+      cursor: text;
+      border-radius: 4px 0 0 4px;
     }
     #${PANEL_ID} .mini-stepper-value:hover { background: ${SURFACE_2}; }
-    #${PANEL_ID} .mini-stepper-value:focus { background: ${SURFACE_2}; border-color: ${ACCENT}; }
+    #${PANEL_ID} .mini-stepper-value:focus { background: ${SURFACE_2}; outline: 2px solid ${ACCENT}; outline-offset: -2px; border-radius: 4px 0 0 4px; }
     #${PANEL_ID} .mini-stepper-value.is-zero { color: ${INK_3}; }
+    #${PANEL_ID} .mini-stepper-arrows {
+      display: flex; border-left: 1px solid ${BORDER_SOFT};
+    }
+    #${PANEL_ID} .mini-stepper-arr {
+      width: 22px; padding: 0; border: 0;
+      background: transparent; color: ${INK_3}; cursor: pointer; outline: none;
+      display: inline-flex; align-items: center; justify-content: center;
+      flex-shrink: 0; transition: background 80ms, color 80ms;
+    }
+    #${PANEL_ID} .mini-stepper-arr svg { display: block; }
+    #${PANEL_ID} .mini-stepper-arr:hover { background: ${SURFACE_2}; color: ${INK_1}; }
+    #${PANEL_ID} .mini-stepper-arr:focus-visible { outline: 2px solid ${ACCENT}; outline-offset: -2px; }
+    #${PANEL_ID} .mini-stepper-arr:disabled { opacity: 0.30; cursor: default; }
+    #${PANEL_ID} .mini-stepper-arr-next { border-left: 1px solid ${BORDER_SOFT}; border-radius: 0 4px 4px 0; }
+
+    /* Token dropdown */
+    #${DROPDOWN_ID} {
+      position: fixed;
+      background: ${SURFACE};
+      border: 1px solid ${BORDER};
+      border-radius: 8px;
+      box-shadow: 0 12px 32px -8px rgba(0,0,0,.50);
+      padding: 4px;
+      z-index: 2147483647;
+      font-family: ui-monospace, "SF Mono", "JetBrains Mono", monospace;
+      font-size: 13px;
+      min-width: 200px;
+      max-height: 280px;
+      overflow-y: auto;
+    }
+    #${DROPDOWN_ID} .ddi {
+      display: grid;
+      grid-template-columns: 1fr auto 16px;
+      gap: 16px; padding: 8px 12px;
+      border-radius: 5px; cursor: pointer;
+      width: 100%; border: 0; background: transparent;
+      font: inherit; color: ${INK_2}; align-items: center;
+      text-align: left; outline: none;
+    }
+    #${DROPDOWN_ID} .ddi:hover { background: ${SURFACE_2}; color: ${INK_1}; }
+    #${DROPDOWN_ID} .ddi:focus-visible { outline: 2px solid ${ACCENT}; outline-offset: -2px; }
+    #${DROPDOWN_ID} .ddi.is-current { color: ${INK_1}; }
+    #${DROPDOWN_ID} .ddi-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #${DROPDOWN_ID} .ddi-value { color: ${INK_3}; white-space: nowrap; }
+    #${DROPDOWN_ID} .ddi-check { color: ${ACCENT}; text-align: right; }
+    #${DROPDOWN_ID} .ddi-check.is-hidden { visibility: hidden; }
 
     /* Color block */
     #${PANEL_ID} .color-prop {
@@ -601,14 +654,20 @@ function buildPropertyBlock(prop: PropEntry): HTMLElement {
   block.appendChild(hero);
 
   const stepper = createEl('div', 'stepper');
-  const prev = createEl('button', 'stepper-arr', '◂');
-  prev.type = 'button';
-  prev.setAttribute('aria-label', `Previous ${shortLabel(prop.prop)}`);
   const name = createEl('button', 'stepper-name');
   name.type = 'button';
-  const next = createEl('button', 'stepper-arr', '▸');
+  name.setAttribute('aria-haspopup', 'listbox');
+  const arrows = createEl('div', 'stepper-arrows');
+  const prev = createEl('button', 'stepper-arr stepper-arr-prev');
+  prev.type = 'button';
+  prev.innerHTML = CHEVRON_LEFT;
+  prev.setAttribute('aria-label', `Previous ${shortLabel(prop.prop)}`);
+  const next = createEl('button', 'stepper-arr stepper-arr-next');
   next.type = 'button';
+  next.innerHTML = CHEVRON_RIGHT;
   next.setAttribute('aria-label', `Next ${shortLabel(prop.prop)}`);
+  arrows.appendChild(prev);
+  arrows.appendChild(next);
 
   const state = initStepperState(prop);
 
@@ -632,77 +691,124 @@ function buildPropertyBlock(prop: PropEntry): HTMLElement {
     }
   }
 
-  function step(delta: number) {
+  function applyIndex(idx: number) {
     if (!prop.tokens[0]) return;
-    const newIdx = state.index + delta;
-    if (newIdx < 0 || newIdx >= state.candidates.length) return;
-    state.index = newIdx;
-    const target = state.candidates[newIdx]!;
+    if (idx < 0 || idx >= state.candidates.length) return;
+    state.index = idx;
+    const target = state.candidates[idx]!;
     hero.textContent = formatHero(valueAsString(target.value));
     refresh();
     emitTokenUpdate(prop.tokens[0].path, target.value);
   }
 
-  prev.addEventListener('click', () => step(-1));
-  next.addEventListener('click', () => step(+1));
-
-  // Click name → swap to text input for custom value
-  name.addEventListener('click', () => {
-    if (!prop.tokens[0]) return;
-    enterTextEdit(name, prop.value, (next) => {
-      hero.textContent = formatHero(next);
-      emitTokenUpdate(prop.tokens[0]!.path, next);
-    });
+  prev.addEventListener('click', () => applyIndex(state.index - 1));
+  next.addEventListener('click', () => applyIndex(state.index + 1));
+  name.addEventListener('click', (e) => {
+    if (state.candidates.length === 0 || !prop.tokens[0]) return;
+    e.stopPropagation();
+    openTokenDropdown(name, state, applyIndex);
   });
 
-  stepper.addEventListener('keydown', (e) => {
-    if (e.key === 'ArrowLeft') {
-      e.preventDefault();
-      step(-1);
-    }
-    if (e.key === 'ArrowRight') {
-      e.preventDefault();
-      step(+1);
-    }
-  });
-
-  stepper.appendChild(prev);
   stepper.appendChild(name);
-  stepper.appendChild(next);
+  stepper.appendChild(arrows);
   block.appendChild(stepper);
 
   refresh();
   return block;
 }
 
-function enterTextEdit(
-  nameBtn: HTMLButtonElement,
-  initial: string,
-  commit: (next: string) => void,
+// ── Token dropdown ─────────────────────────────────────────────────────────
+function closeDropdown(): void {
+  document.getElementById(DROPDOWN_ID)?.remove();
+}
+
+function openTokenDropdown(
+  anchor: HTMLElement,
+  state: StepperState,
+  onSelect: (idx: number) => void,
 ): void {
-  const input = document.createElement('input');
-  input.type = 'text';
-  input.value = initial;
-  input.className = 'stepper-name is-input';
-  input.style.flex = '1';
-  nameBtn.replaceWith(input);
-  input.focus();
-  input.select();
-  function done(submit: boolean) {
-    if (submit && input.value !== initial) commit(input.value);
-    input.replaceWith(nameBtn);
+  closeDropdown();
+  if (state.candidates.length === 0) return;
+
+  const dd = createEl('div');
+  dd.id = DROPDOWN_ID;
+  dd.setAttribute('role', 'listbox');
+
+  const items: HTMLButtonElement[] = [];
+  state.candidates.forEach((c, i) => {
+    const item = createEl('button', 'ddi');
+    item.type = 'button';
+    item.setAttribute('role', 'option');
+    if (i === state.index) item.classList.add('is-current');
+    item.appendChild(createEl('span', 'ddi-name', formatTokenName(c)));
+    item.appendChild(createEl('span', 'ddi-value', valueAsString(c.value)));
+    const check = createEl('span', 'ddi-check', i === state.index ? '✓' : '');
+    if (i !== state.index) check.classList.add('is-hidden');
+    item.appendChild(check);
+    item.addEventListener('click', (e) => {
+      e.stopPropagation();
+      onSelect(i);
+      closeDropdown();
+    });
+    items.push(item);
+    dd.appendChild(item);
+  });
+
+  document.body.appendChild(dd);
+
+  // Position below anchor; flip above if it overflows.
+  const ar = anchor.getBoundingClientRect();
+  const dr = dd.getBoundingClientRect();
+  let top = ar.bottom + 4;
+  let left = ar.left;
+  if (top + dr.height > window.innerHeight - 8) {
+    const aboveTop = ar.top - dr.height - 4;
+    if (aboveTop >= 8) top = aboveTop;
+    else top = window.innerHeight - dr.height - 8;
   }
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      done(true);
-    }
+  if (left + dr.width > window.innerWidth - 8) {
+    left = window.innerWidth - dr.width - 8;
+  }
+  if (left < 8) left = 8;
+  dd.style.top = `${top}px`;
+  dd.style.left = `${left}px`;
+
+  // Focus current item for keyboard navigation
+  setTimeout(() => items[Math.max(0, state.index)]?.focus(), 0);
+
+  function onKey(e: KeyboardEvent) {
     if (e.key === 'Escape') {
       e.preventDefault();
-      done(false);
+      closeDropdown();
+      cleanup();
+      return;
     }
-  });
-  input.addEventListener('blur', () => done(true));
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const focused = document.activeElement as HTMLElement | null;
+      const idx = items.findIndex((b) => b === focused);
+      const dir = e.key === 'ArrowDown' ? 1 : -1;
+      const nextIdx = Math.max(0, Math.min(items.length - 1, idx + dir));
+      items[nextIdx]?.focus();
+    }
+  }
+
+  function onDocClick(e: MouseEvent) {
+    const t = e.target as Element | null;
+    if (t && (t === dd || dd.contains(t))) return;
+    closeDropdown();
+    cleanup();
+  }
+
+  function cleanup() {
+    document.removeEventListener('keydown', onKey, true);
+    document.removeEventListener('mousedown', onDocClick, true);
+  }
+
+  setTimeout(() => {
+    document.addEventListener('keydown', onKey, true);
+    document.addEventListener('mousedown', onDocClick, true);
+  }, 0);
 }
 
 // ── Spacing matrix ─────────────────────────────────────────────────────────
@@ -716,9 +822,6 @@ function buildMiniStepper(maybeProp: PropEntry | undefined): HTMLElement {
   }
   const prop: PropEntry = maybeProp;
 
-  const prev = createEl('button', 'mini-stepper-arr', '◂');
-  prev.type = 'button';
-  prev.setAttribute('aria-label', `Decrease ${prop.prop}`);
   const value = createEl('input', 'mini-stepper-value');
   value.type = 'text';
   value.value = compactValue(prop.value);
@@ -729,9 +832,18 @@ function buildMiniStepper(maybeProp: PropEntry | undefined): HTMLElement {
   } else {
     value.title = prop.prop;
   }
-  const next = createEl('button', 'mini-stepper-arr', '▸');
+
+  const arrows = createEl('div', 'mini-stepper-arrows');
+  const prev = createEl('button', 'mini-stepper-arr mini-stepper-arr-prev');
+  prev.type = 'button';
+  prev.innerHTML = CHEVRON_LEFT_SM;
+  prev.setAttribute('aria-label', `Decrease ${prop.prop}`);
+  const next = createEl('button', 'mini-stepper-arr mini-stepper-arr-next');
   next.type = 'button';
+  next.innerHTML = CHEVRON_RIGHT_SM;
   next.setAttribute('aria-label', `Increase ${prop.prop}`);
+  arrows.appendChild(prev);
+  arrows.appendChild(next);
 
   const state = initStepperState(prop);
 
@@ -745,12 +857,11 @@ function buildMiniStepper(maybeProp: PropEntry | undefined): HTMLElement {
     }
   }
 
-  function step(delta: number) {
+  function applyIndex(idx: number) {
     if (!prop.tokens[0]) return;
-    const newIdx = state.index + delta;
-    if (newIdx < 0 || newIdx >= state.candidates.length) return;
-    state.index = newIdx;
-    const target = state.candidates[newIdx]!;
+    if (idx < 0 || idx >= state.candidates.length) return;
+    state.index = idx;
+    const target = state.candidates[idx]!;
     const newDisplay = compactValue(valueAsString(target.value));
     value.value = newDisplay;
     value.classList.toggle('is-zero', newDisplay === '0');
@@ -758,17 +869,22 @@ function buildMiniStepper(maybeProp: PropEntry | undefined): HTMLElement {
     emitTokenUpdate(prop.tokens[0].path, target.value);
   }
 
-  prev.addEventListener('click', () => step(-1));
-  next.addEventListener('click', () => step(+1));
+  prev.addEventListener('click', () => applyIndex(state.index - 1));
+  next.addEventListener('click', () => applyIndex(state.index + 1));
   value.addEventListener('focus', () => value.select());
+  value.addEventListener('click', (e) => {
+    if (state.candidates.length === 0 || !prop.tokens[0]) return;
+    e.stopPropagation();
+    openTokenDropdown(value, state, applyIndex);
+  });
   value.addEventListener('keydown', (e) => {
     if (e.key === 'ArrowLeft') {
       e.preventDefault();
-      step(-1);
+      applyIndex(state.index - 1);
     }
     if (e.key === 'ArrowRight') {
       e.preventDefault();
-      step(+1);
+      applyIndex(state.index + 1);
     }
     if (e.key === 'Enter') value.blur();
     if (e.key === 'Escape') {
@@ -781,9 +897,8 @@ function buildMiniStepper(maybeProp: PropEntry | undefined): HTMLElement {
     emitTokenUpdate(prop.tokens[0]!.path, value.value);
   });
 
-  wrap.appendChild(prev);
   wrap.appendChild(value);
-  wrap.appendChild(next);
+  wrap.appendChild(arrows);
   refresh();
   return wrap;
 }
@@ -830,14 +945,20 @@ function buildColorBlock(prop: PropEntry): HTMLElement {
   block.appendChild(value);
 
   const stepper = createEl('div', 'stepper');
-  const prev = createEl('button', 'stepper-arr', '◂');
-  prev.type = 'button';
-  prev.setAttribute('aria-label', `Previous color`);
   const name = createEl('button', 'stepper-name');
   name.type = 'button';
-  const next = createEl('button', 'stepper-arr', '▸');
+  name.setAttribute('aria-haspopup', 'listbox');
+  const arrows = createEl('div', 'stepper-arrows');
+  const prev = createEl('button', 'stepper-arr stepper-arr-prev');
+  prev.type = 'button';
+  prev.innerHTML = CHEVRON_LEFT;
+  prev.setAttribute('aria-label', 'Previous color');
+  const next = createEl('button', 'stepper-arr stepper-arr-next');
   next.type = 'button';
-  next.setAttribute('aria-label', `Next color`);
+  next.innerHTML = CHEVRON_RIGHT;
+  next.setAttribute('aria-label', 'Next color');
+  arrows.appendChild(prev);
+  arrows.appendChild(next);
 
   const state = initStepperState(prop);
 
@@ -859,31 +980,25 @@ function buildColorBlock(prop: PropEntry): HTMLElement {
     }
   }
 
-  function step(delta: number) {
+  function applyIndex(idx: number) {
     if (!prop.tokens[0]) return;
-    const newIdx = state.index + delta;
-    if (newIdx < 0 || newIdx >= state.candidates.length) return;
-    state.index = newIdx;
-    const target = state.candidates[newIdx]!;
-    const next = valueAsString(target.value);
-    value.textContent = next;
-    swatch.style.background = next;
-    colorInput.value = parseHex(next) ?? colorInput.value;
+    if (idx < 0 || idx >= state.candidates.length) return;
+    state.index = idx;
+    const target = state.candidates[idx]!;
+    const nextValue = valueAsString(target.value);
+    value.textContent = nextValue;
+    swatch.style.background = nextValue;
+    colorInput.value = parseHex(nextValue) ?? colorInput.value;
     refresh();
     emitTokenUpdate(prop.tokens[0].path, target.value);
   }
 
-  prev.addEventListener('click', () => step(-1));
-  next.addEventListener('click', () => step(+1));
-  stepper.addEventListener('keydown', (e) => {
-    if (e.key === 'ArrowLeft') {
-      e.preventDefault();
-      step(-1);
-    }
-    if (e.key === 'ArrowRight') {
-      e.preventDefault();
-      step(+1);
-    }
+  prev.addEventListener('click', () => applyIndex(state.index - 1));
+  next.addEventListener('click', () => applyIndex(state.index + 1));
+  name.addEventListener('click', (e) => {
+    if (state.candidates.length === 0 || !prop.tokens[0]) return;
+    e.stopPropagation();
+    openTokenDropdown(name, state, applyIndex);
   });
 
   colorInput.addEventListener('input', () => {
@@ -892,9 +1007,8 @@ function buildColorBlock(prop: PropEntry): HTMLElement {
     if (prop.tokens.length) emitTokenUpdate(prop.tokens[0]!.path, colorInput.value);
   });
 
-  stepper.appendChild(prev);
   stepper.appendChild(name);
-  stepper.appendChild(next);
+  stepper.appendChild(arrows);
   block.appendChild(stepper);
 
   refresh();
@@ -1117,6 +1231,7 @@ function positionEditPanel(panel: HTMLElement, el: Element, placement: Placement
 }
 
 function removeEditPanel(): void {
+  closeDropdown();
   editPanel?.remove();
   editPanel = null;
   hoverEl = null;
@@ -1141,7 +1256,7 @@ function isAgentNode(el: Element | null): boolean {
   let cur: Element | null = el;
   while (cur) {
     const id = cur.id;
-    if (id === OVERLAY_ID || id === LABEL_ID || id === PANEL_ID) return true;
+    if (id === OVERLAY_ID || id === LABEL_ID || id === PANEL_ID || id === DROPDOWN_ID) return true;
     cur = cur.parentElement;
   }
   return false;
