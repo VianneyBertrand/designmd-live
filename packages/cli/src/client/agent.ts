@@ -1036,16 +1036,38 @@ function showEditPanel(el: Element): void {
   hoverEl = el;
   const props = inspectElement(el);
   const panel = buildEditPanel(el, props);
+
+  // Render hidden first so we can measure and decide whether to scroll.
+  panel.style.visibility = 'hidden';
+  panel.style.top = '0';
+  panel.style.left = '0';
   document.body.appendChild(panel);
   editPanel = panel;
-  positionEditPanel(panel, el);
+
+  const panelHeight = panel.getBoundingClientRect().height;
+  const elBottom = el.getBoundingClientRect().bottom;
+  const overflow = elBottom + 12 + panelHeight + 8 - window.innerHeight;
+
+  function reveal() {
+    if (editPanel !== panel) return; // user clicked elsewhere mid-scroll
+    panel.style.visibility = '';
+    positionEditPanel(panel, el);
+  }
+
+  if (overflow > 0) {
+    // Scroll the page just enough so the panel fits below the element.
+    // Honor the user's CSS scroll-behavior (smooth vs instant) via 'auto'.
+    window.scrollBy({ top: overflow, left: 0, behavior: 'auto' });
+    // Even with instant scroll, getBoundingClientRect needs a frame to settle.
+    requestAnimationFrame(() => requestAnimationFrame(reveal));
+  } else {
+    reveal();
+  }
 }
 
 function positionEditPanel(panel: HTMLElement, el: Element): void {
   const r = el.getBoundingClientRect();
   const pr = panel.getBoundingClientRect();
-  // Always anchor below — never flip above. Slide up only as a last resort
-  // to keep the panel onscreen.
   let top = r.bottom + 12;
   const maxTop = window.innerHeight - pr.height - 8;
   if (maxTop > 8 && top > maxTop) top = maxTop;
