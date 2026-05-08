@@ -1,14 +1,21 @@
 import { z } from 'zod';
 
 /**
- * DTCG-shaped token leaf. We accept the full breadth of $value types
- * (string for color/dimension, array for fontFamily/cubic-bezier,
- * number for opacity/zIndex, object for shadow/typography composites)
- * and let the renderer fall back to a textual sample when the type is
- * unknown.
+ * DTCG-shaped token leaf. $value must be present *and* be one of the
+ * concrete allowed shapes — otherwise z.union below would happily
+ * match an empty group as a leaf, strip its keys, and silently
+ * collapse the whole document to {}.
  */
+const TokenValueSchema = z.union([
+  z.string(),
+  z.number(),
+  z.boolean(),
+  z.array(z.unknown()),
+  z.record(z.unknown()),
+]);
+
 const TokenLeafSchema = z.object({
-  $value: z.unknown(),
+  $value: TokenValueSchema,
   $type: z.string().optional(),
   $description: z.string().optional(),
 });
