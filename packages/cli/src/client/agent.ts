@@ -1030,6 +1030,8 @@ function buildEditPanel(el: Element, props: PropEntry[]): HTMLElement {
 }
 
 // ── Edit panel placement ───────────────────────────────────────────────────
+type Placement = 'below' | 'above';
+
 function showEditPanel(el: Element): void {
   removeEditPanel();
   ensureEditStyles();
@@ -1037,7 +1039,7 @@ function showEditPanel(el: Element): void {
   const props = inspectElement(el);
   const panel = buildEditPanel(el, props);
 
-  // Render hidden first so we can measure and decide whether to scroll.
+  // Render hidden first so we can measure and decide what to do.
   panel.style.visibility = 'hidden';
   panel.style.top = '0';
   panel.style.left = '0';
@@ -1045,33 +1047,64 @@ function showEditPanel(el: Element): void {
   editPanel = panel;
 
   const panelHeight = panel.getBoundingClientRect().height;
-  const elBottom = el.getBoundingClientRect().bottom;
-  const overflow = elBottom + 12 + panelHeight + 8 - window.innerHeight;
+  const r = el.getBoundingClientRect();
+  const fitsBelow = r.bottom + 12 + panelHeight + 8 <= window.innerHeight;
 
-  function reveal() {
+  function reveal(placement: Placement) {
     if (editPanel !== panel) return; // user clicked elsewhere mid-scroll
     panel.style.visibility = '';
-    positionEditPanel(panel, el);
+    positionEditPanel(panel, el, placement);
   }
 
-  if (overflow > 0) {
-    // Scroll the page just enough so the panel fits below the element.
-    // Honor the user's CSS scroll-behavior (smooth vs instant) via 'auto'.
+  if (fitsBelow) {
+    reveal('below');
+    return;
+  }
+
+  // Need more room. Try scrolling the page so the panel fits below.
+  const overflow = r.bottom + 12 + panelHeight + 8 - window.innerHeight;
+  const docEl = document.documentElement;
+  const maxScrollDown = docEl.scrollHeight - window.scrollY - window.innerHeight;
+
+  if (maxScrollDown >= overflow) {
     window.scrollBy({ top: overflow, left: 0, behavior: 'auto' });
-    // Even with instant scroll, getBoundingClientRect needs a frame to settle.
-    requestAnimationFrame(() => requestAnimationFrame(reveal));
+    requestAnimationFrame(() => requestAnimationFrame(() => reveal('below')));
+    return;
+  }
+
+  // Can't scroll enough — page is at the bottom. Flip above. If we
+  // can't fit above either as-is, scroll up to make room.
+  const spaceAbove = r.top - 8;
+  if (spaceAbove >= panelHeight + 12) {
+    reveal('above');
+    return;
+  }
+  const scrollUpNeeded = panelHeight + 12 - spaceAbove;
+  const maxScrollUp = window.scrollY;
+  if (maxScrollUp > 0) {
+    window.scrollBy({ top: -Math.min(scrollUpNeeded, maxScrollUp), left: 0, behavior: 'auto' });
+    requestAnimationFrame(() => requestAnimationFrame(() => reveal('above')));
   } else {
-    reveal();
+    reveal('above');
   }
 }
 
-function positionEditPanel(panel: HTMLElement, el: Element): void {
+function positionEditPanel(panel: HTMLElement, el: Element, placement: Placement): void {
   const r = el.getBoundingClientRect();
   const pr = panel.getBoundingClientRect();
-  let top = r.bottom + 12;
+
+  let top: number;
+  if (placement === 'above') {
+    top = r.top - pr.height - 12;
+  } else {
+    top = r.bottom + 12;
+  }
+
+  // Clamp to viewport bounds — never let the panel slip offscreen.
+  const minTop = 8;
   const maxTop = window.innerHeight - pr.height - 8;
-  if (maxTop > 8 && top > maxTop) top = maxTop;
-  if (top < 8) top = 8;
+  if (maxTop > minTop && top > maxTop) top = maxTop;
+  if (top < minTop) top = minTop;
 
   let left = r.left;
   if (left + pr.width > window.innerWidth - 8) {
