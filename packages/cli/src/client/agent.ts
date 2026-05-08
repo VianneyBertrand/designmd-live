@@ -329,7 +329,11 @@ function ensureEditStyles(): void {
     #${PANEL_ID} .hdr {
       display: flex; align-items: flex-start; justify-content: space-between;
       gap: 16px;
+      cursor: grab;
+      user-select: none;
     }
+    #${PANEL_ID}.is-dragging .hdr { cursor: grabbing; }
+    #${PANEL_ID}.is-dragging { user-select: none; }
     #${PANEL_ID} .hdr-tag { font-size: 14px; font-weight: 500; color: ${INK_1}; }
     #${PANEL_ID} .hdr-sub { font-size: 13px; color: ${INK_3}; margin-top: 4px; }
     #${PANEL_ID} .hdr-close {
@@ -1186,6 +1190,9 @@ function buildEditPanel(el: Element, props: PropEntry[]): HTMLElement {
   hdr.appendChild(close);
   panel.appendChild(hdr);
 
+  // Drag from header
+  attachDrag(panel, hdr);
+
   panel.appendChild(createEl('div', 'divider'));
 
   // Strip — four cards always rendered (with "—" empty state for missing categories)
@@ -1206,6 +1213,51 @@ function buildEditPanel(el: Element, props: PropEntry[]): HTMLElement {
   panel.appendChild(strip);
 
   return panel;
+}
+
+// ── Drag ──────────────────────────────────────────────────────────────────
+function attachDrag(panel: HTMLElement, handle: HTMLElement): void {
+  let startX = 0;
+  let startY = 0;
+  let panelTop = 0;
+  let panelLeft = 0;
+
+  handle.addEventListener('mousedown', (e) => {
+    // Don't initiate drag from interactive controls inside the header.
+    const target = e.target as Element | null;
+    if (target?.closest('button, input, select')) return;
+    e.preventDefault();
+    const r = panel.getBoundingClientRect();
+    panelTop = r.top;
+    panelLeft = r.left;
+    startX = e.clientX;
+    startY = e.clientY;
+    panel.classList.add('is-dragging');
+
+    function onMove(ev: MouseEvent) {
+      const dx = ev.clientX - startX;
+      const dy = ev.clientY - startY;
+      const pr = panel.getBoundingClientRect();
+      let top = panelTop + dy;
+      let left = panelLeft + dx;
+      // Clamp to viewport
+      if (top < 8) top = 8;
+      const maxTop = window.innerHeight - pr.height - 8;
+      if (maxTop > 8 && top > maxTop) top = maxTop;
+      if (left < 8) left = 8;
+      const maxLeft = window.innerWidth - pr.width - 8;
+      if (maxLeft > 8 && left > maxLeft) left = maxLeft;
+      panel.style.top = `${top}px`;
+      panel.style.left = `${left}px`;
+    }
+    function onUp() {
+      panel.classList.remove('is-dragging');
+      document.removeEventListener('mousemove', onMove, true);
+      document.removeEventListener('mouseup', onUp, true);
+    }
+    document.addEventListener('mousemove', onMove, true);
+    document.addEventListener('mouseup', onUp, true);
+  });
 }
 
 // ── Edit panel placement ───────────────────────────────────────────────────
