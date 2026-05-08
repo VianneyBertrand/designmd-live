@@ -100,12 +100,20 @@ export const AGENT_SCRIPT = `(() => {
     return null;
   }
   function tokenMatchesValue(token, valueStr) {
-    if (Array.isArray(token.value)) return false; // skip fontFamily for spacing matches
+    if (Array.isArray(token.value)) return false;
     if (typeof token.value === 'object') return false;
     const tv = String(token.value).trim();
-    if (tv === valueStr.trim()) return true;
+    const v = valueStr.trim();
+    if (tv === v) return true;
+    // Unitless line-height tokens: computed style returns px (e.g. 1.5 over 16px → "24px").
+    // Compare numerically against the parsed px equivalent assuming the current root font-size.
+    const numericTv = Number(tv);
+    if (Number.isFinite(numericTv) && /^\\d+(\\.\\d+)?(\\.\\d+)?$/.test(tv)) {
+      const vpx = toPx(v);
+      if (vpx != null) return Math.abs(numericTv * rootFontPx() - vpx) < 0.6;
+    }
     const tpx = toPx(token.value);
-    const vpx = toPx(valueStr);
+    const vpx = toPx(v);
     if (tpx == null || vpx == null) return false;
     return Math.abs(tpx - vpx) < 0.5;
   }
@@ -147,6 +155,10 @@ export const AGENT_SCRIPT = `(() => {
     add('padding-right', cs.paddingRight, 'spacing');
     add('padding-bottom', cs.paddingBottom, 'spacing');
     add('padding-left', cs.paddingLeft, 'spacing');
+    add('margin-top', cs.marginTop, 'spacing');
+    add('margin-right', cs.marginRight, 'spacing');
+    add('margin-bottom', cs.marginBottom, 'spacing');
+    add('margin-left', cs.marginLeft, 'spacing');
     add('gap', cs.gap, 'spacing');
     add('row-gap', cs.rowGap, 'spacing');
     add('column-gap', cs.columnGap, 'spacing');

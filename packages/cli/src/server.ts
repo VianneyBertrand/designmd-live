@@ -103,7 +103,24 @@ export async function startServer({ port, cwd, proxy }: ServerOptions): Promise<
   const server = serve({ fetch: app.fetch, port, hostname: '127.0.0.1' });
 
   const wss = new WebSocketServer({ noServer: true });
-  wss.on('connection', (ws) => {
+
+  async function snapshotMessage(): Promise<string | null> {
+    try {
+      const raw = await readFile(join(cwd, 'DESIGN.md'), 'utf8');
+      const parsed = parseDesignMd(raw);
+      const tokens = flattenTokens(parsed.tokens).map((t) => ({ path: t.path, value: t.value }));
+      return JSON.stringify({ type: 'snapshot', tokens, source: 'broker-init' });
+    } catch {
+      return null;
+    }
+  }
+
+  wss.on('connection', async (ws) => {
+    // Replay the current snapshot to every newcomer so target apps that
+    // attach after the panel still receive the token cache.
+    const snap = await snapshotMessage();
+    if (snap && ws.readyState === ws.OPEN) ws.send(snap);
+
     ws.on('message', (data) => {
       const text = data.toString();
       for (const client of wss.clients) {
