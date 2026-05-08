@@ -311,7 +311,7 @@ function ensureEditStyles(): void {
     }
     #${PANEL_ID} {
       position: fixed;
-      width: min(1100px, calc(100vw - 32px));
+      width: min(1320px, calc(100vw - 32px));
       max-height: calc(100vh - 32px);
       overflow: auto;
       background: ${SURFACE};
@@ -319,7 +319,7 @@ function ensureEditStyles(): void {
       border: 1px solid ${BORDER};
       border-radius: 12px;
       box-shadow: 0 16px 40px -8px rgba(0,0,0,.50), 0 1px 0 ${BORDER};
-      padding: 18px 22px;
+      padding: 16px 20px;
       z-index: 2147483647;
       font-size: 13px;
       line-height: 1.5;
@@ -373,19 +373,21 @@ function ensureEditStyles(): void {
       color: ${INK_3}; font-size: 13px; padding: 8px 0;
     }
 
-    /* Property block: label / hero value / stepper */
-    #${PANEL_ID} .prop {
-      margin-bottom: 16px;
+    /* Single-line property row: [label] [value] [stepper] */
+    #${PANEL_ID} .prow {
+      display: grid;
+      grid-template-columns: 56px 76px 1fr;
+      align-items: center;
+      gap: 10px;
+      padding: 3px 0;
+      min-height: 36px;
     }
-    #${PANEL_ID} .prop:last-child { margin-bottom: 0; }
-    #${PANEL_ID} .prop-label {
-      font-size: 13px; color: ${INK_2};
-      margin-bottom: 4px;
+    #${PANEL_ID} .prow-label { font-size: 13px; color: ${INK_2}; }
+    #${PANEL_ID} .prow-value {
+      font-size: 14px; font-weight: 500; color: ${INK_1};
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
-    #${PANEL_ID} .prop-hero {
-      font-size: 15px; font-weight: 500; color: ${INK_1};
-      margin-bottom: 6px; line-height: 1.2;
-    }
+    #${PANEL_ID} .prow + .prow { margin-top: 0; }
 
     /* Stepper — name (left, opens dropdown) + chevron group (right, side-by-side) */
     #${PANEL_ID} .stepper {
@@ -432,59 +434,63 @@ function ensureEditStyles(): void {
     #${PANEL_ID} .stepper-arr:disabled:hover { background: transparent; color: ${INK_3}; }
     #${PANEL_ID} .stepper-arr-next { border-left: 1px solid ${BORDER_SOFT}; border-radius: 0 5px 5px 0; }
 
-    /* Spacing matrix */
-    #${PANEL_ID} .matrix-title {
-      font-size: 12px; font-weight: 600;
-      letter-spacing: 0.08em; text-transform: uppercase;
-      color: ${INK_3}; text-align: center;
-      margin-bottom: 8px;
-    }
-    #${PANEL_ID} .matrix + .matrix-title { margin-top: 14px; }
-    #${PANEL_ID} .matrix-grid {
+    /* Spacing card: 2 sub-columns of 4 compact rows each */
+    #${PANEL_ID} .spacing-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 4px;
-      align-items: center; justify-items: center;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
     }
-    #${PANEL_ID} .matrix-center {
-      width: 60px; height: 24px;
-      border: 1px dashed ${BORDER}; border-radius: 4px;
+    #${PANEL_ID} .spacing-col-title {
+      font-size: 11px; font-weight: 600;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      color: ${INK_3};
+      margin-bottom: 6px;
     }
-    #${PANEL_ID} .mini-stepper {
-      display: flex; align-items: stretch;
-      width: 100%; max-width: 100px;
-      height: 30px;
+    #${PANEL_ID} .srow {
+      display: grid;
+      grid-template-columns: 14px 1fr 56px;
+      align-items: center;
+      gap: 8px;
+      padding: 2px 0;
+      min-height: 32px;
+    }
+    #${PANEL_ID} .srow-letter {
+      font-size: 12px; color: ${INK_3}; text-align: center;
+    }
+    #${PANEL_ID} .srow-value {
+      background: ${SURFACE_2};
+      border: 1px solid transparent;
+      border-radius: 5px;
+      color: ${INK_1}; font: inherit; font-size: 13px;
+      text-align: center;
+      padding: 4px 6px;
+      outline: none;
+      width: 100%;
+    }
+    #${PANEL_ID} .srow-value:hover { border-color: ${BORDER_SOFT}; }
+    #${PANEL_ID} .srow-value:focus { border-color: ${ACCENT}; }
+    #${PANEL_ID} .srow-value.is-zero { color: ${INK_3}; }
+    #${PANEL_ID} .srow-value.is-empty { color: ${INK_3}; opacity: 0.5; pointer-events: none; }
+    #${PANEL_ID} .srow-arrows {
+      display: flex;
       border: 1px solid ${BORDER_SOFT};
       border-radius: 5px;
       background: ${SURFACE};
+      overflow: hidden;
+      height: 28px;
     }
-    #${PANEL_ID} .mini-stepper:hover { border-color: ${BORDER}; }
-    #${PANEL_ID} .mini-stepper-value {
-      flex: 1; min-width: 0;
-      background: transparent; border: 0;
-      color: ${INK_1}; font: inherit; font-size: 13px;
-      text-align: center; outline: none;
-      padding: 0 4px;
-      cursor: text;
-      border-radius: 4px 0 0 4px;
-    }
-    #${PANEL_ID} .mini-stepper-value:hover { background: ${SURFACE_2}; }
-    #${PANEL_ID} .mini-stepper-value:focus { background: ${SURFACE_2}; outline: 2px solid ${ACCENT}; outline-offset: -2px; border-radius: 4px 0 0 4px; }
-    #${PANEL_ID} .mini-stepper-value.is-zero { color: ${INK_3}; }
-    #${PANEL_ID} .mini-stepper-arrows {
-      display: flex; border-left: 1px solid ${BORDER_SOFT};
-    }
-    #${PANEL_ID} .mini-stepper-arr {
-      width: 22px; padding: 0; border: 0;
-      background: transparent; color: ${INK_3}; cursor: pointer; outline: none;
+    #${PANEL_ID} .srow-arr {
+      width: 28px; padding: 0; border: 0; background: transparent;
+      color: ${INK_3}; cursor: pointer; outline: none;
       display: inline-flex; align-items: center; justify-content: center;
-      flex-shrink: 0; transition: background 80ms, color 80ms;
+      flex-shrink: 0;
+      transition: background 80ms, color 80ms;
     }
-    #${PANEL_ID} .mini-stepper-arr svg { display: block; }
-    #${PANEL_ID} .mini-stepper-arr:hover { background: ${SURFACE_2}; color: ${INK_1}; }
-    #${PANEL_ID} .mini-stepper-arr:focus-visible { outline: 2px solid ${ACCENT}; outline-offset: -2px; }
-    #${PANEL_ID} .mini-stepper-arr:disabled { opacity: 0.30; cursor: default; }
-    #${PANEL_ID} .mini-stepper-arr-next { border-left: 1px solid ${BORDER_SOFT}; border-radius: 0 4px 4px 0; }
+    #${PANEL_ID} .srow-arr svg { display: block; }
+    #${PANEL_ID} .srow-arr:hover { background: ${SURFACE_2}; color: ${INK_1}; }
+    #${PANEL_ID} .srow-arr:disabled { opacity: 0.30; cursor: default; }
+    #${PANEL_ID} .srow-arr:focus-visible { outline: 2px solid ${ACCENT}; outline-offset: -2px; }
+    #${PANEL_ID} .srow-arr + .srow-arr { border-left: 1px solid ${BORDER_SOFT}; }
 
     /* Token dropdown */
     #${DROPDOWN_ID} {
@@ -518,14 +524,17 @@ function ensureEditStyles(): void {
     #${DROPDOWN_ID} .ddi-check { color: ${ACCENT}; text-align: right; }
     #${DROPDOWN_ID} .ddi-check.is-hidden { visibility: hidden; }
 
-    /* Color block */
+    /* Color row — single-line, then swatch grid below */
     #${PANEL_ID} .color-prop {
-      margin-bottom: 16px;
+      margin-bottom: 12px;
     }
     #${PANEL_ID} .color-prop:last-child { margin-bottom: 0; }
-    #${PANEL_ID} .color-head {
-      display: flex; align-items: center; gap: 10px;
-      margin-bottom: 6px;
+    #${PANEL_ID} .crow {
+      display: grid;
+      grid-template-columns: 20px 50px 100px 1fr;
+      align-items: center;
+      gap: 10px;
+      min-height: 36px;
     }
     #${PANEL_ID} .color-swatch {
       position: relative;
@@ -540,12 +549,9 @@ function ensureEditStyles(): void {
       position: absolute; inset: 0; opacity: 0; cursor: pointer; border: 0;
       width: 100%; height: 100%;
     }
-    #${PANEL_ID} .color-label {
-      font-size: 13px; color: ${INK_2};
-    }
-    #${PANEL_ID} .color-value {
+    #${PANEL_ID} .crow-label { font-size: 13px; color: ${INK_2}; }
+    #${PANEL_ID} .crow-value {
       font-size: 14px; font-weight: 500; color: ${INK_1};
-      margin-bottom: 6px; line-height: 1.2;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
 
@@ -676,10 +682,10 @@ function initStepperState(prop: PropEntry): StepperState {
 }
 
 function buildPropertyBlock(prop: PropEntry): HTMLElement {
-  const block = createEl('div', 'prop');
-  block.appendChild(createEl('div', 'prop-label', shortLabel(prop.prop)));
-  const hero = createEl('div', 'prop-hero', formatHero(prop.value));
-  block.appendChild(hero);
+  const row = createEl('div', 'prow');
+  row.appendChild(createEl('span', 'prow-label', shortLabel(prop.prop)));
+  const heroEl = createEl('span', 'prow-value', formatHero(prop.value));
+  row.appendChild(heroEl);
 
   const stepper = createEl('div', 'stepper');
   const name = createEl('button', 'stepper-name');
@@ -724,7 +730,7 @@ function buildPropertyBlock(prop: PropEntry): HTMLElement {
     if (idx < 0 || idx >= state.candidates.length) return;
     state.index = idx;
     const target = state.candidates[idx]!;
-    hero.textContent = formatHero(valueAsString(target.value));
+    heroEl.textContent = formatHero(valueAsString(target.value));
     refresh();
     emitTokenUpdate(prop.tokens[0].path, target.value);
   }
@@ -739,10 +745,10 @@ function buildPropertyBlock(prop: PropEntry): HTMLElement {
 
   stepper.appendChild(name);
   stepper.appendChild(arrows);
-  block.appendChild(stepper);
+  row.appendChild(stepper);
 
   refresh();
-  return block;
+  return row;
 }
 
 // ── Token dropdown ─────────────────────────────────────────────────────────
@@ -839,18 +845,24 @@ function openTokenDropdown(
   }, 0);
 }
 
-// ── Spacing matrix ─────────────────────────────────────────────────────────
-function buildMiniStepper(maybeProp: PropEntry | undefined): HTMLElement {
-  const wrap = createEl('div', 'mini-stepper');
+// ── Spacing card — 2 sub-columns × 4 compact rows (Top/Right/Bottom/Left) ──
+function buildSpacingRow(side: 'top' | 'right' | 'bottom' | 'left', maybeProp: PropEntry | undefined): HTMLElement {
+  const row = createEl('div', 'srow');
+  const letter = side[0]!.toUpperCase();
+  row.appendChild(createEl('span', 'srow-letter', letter));
+
   if (!maybeProp) {
-    const empty = createEl('span', 'mini-stepper-value is-zero', '—');
-    empty.style.flex = '1';
-    wrap.appendChild(empty);
-    return wrap;
+    const empty = createEl('input', 'srow-value is-empty');
+    empty.type = 'text';
+    empty.value = '0';
+    empty.disabled = true;
+    row.appendChild(empty);
+    row.appendChild(createEl('span'));
+    return row;
   }
   const prop: PropEntry = maybeProp;
 
-  const value = createEl('input', 'mini-stepper-value');
+  const value = createEl('input', 'srow-value');
   value.type = 'text';
   value.value = compactValue(prop.value);
   value.setAttribute('aria-label', prop.prop);
@@ -861,12 +873,12 @@ function buildMiniStepper(maybeProp: PropEntry | undefined): HTMLElement {
     value.title = prop.prop;
   }
 
-  const arrows = createEl('div', 'mini-stepper-arrows');
-  const prev = createEl('button', 'mini-stepper-arr mini-stepper-arr-prev');
+  const arrows = createEl('div', 'srow-arrows');
+  const prev = createEl('button', 'srow-arr');
   prev.type = 'button';
   prev.innerHTML = CHEVRON_LEFT_SM;
   prev.setAttribute('aria-label', `Decrease ${prop.prop}`);
-  const next = createEl('button', 'mini-stepper-arr mini-stepper-arr-next');
+  const next = createEl('button', 'srow-arr');
   next.type = 'button';
   next.innerHTML = CHEVRON_RIGHT_SM;
   next.setAttribute('aria-label', `Increase ${prop.prop}`);
@@ -874,7 +886,6 @@ function buildMiniStepper(maybeProp: PropEntry | undefined): HTMLElement {
   arrows.appendChild(next);
 
   const state = initStepperState(prop);
-
   function refresh() {
     if (state.candidates.length < 2 || state.index < 0) {
       prev.disabled = true;
@@ -884,7 +895,6 @@ function buildMiniStepper(maybeProp: PropEntry | undefined): HTMLElement {
       next.disabled = state.index >= state.candidates.length - 1;
     }
   }
-
   function applyIndex(idx: number) {
     if (!prop.tokens[0]) return;
     if (idx < 0 || idx >= state.candidates.length) return;
@@ -920,52 +930,40 @@ function buildMiniStepper(maybeProp: PropEntry | undefined): HTMLElement {
     emitTokenUpdate(prop.tokens[0]!.path, value.value);
   });
 
-  wrap.appendChild(value);
-  wrap.appendChild(arrows);
+  row.appendChild(value);
+  row.appendChild(arrows);
   refresh();
-  return wrap;
+  return row;
 }
 
-function buildSpacingCross(
+function buildSpacingColumn(
   title: string,
   sides: Record<'top' | 'right' | 'bottom' | 'left', PropEntry | undefined>,
 ): HTMLElement {
-  const wrap = createEl('div');
-  wrap.appendChild(createEl('div', 'matrix-title', title));
-  const grid = createEl('div', 'matrix-grid');
-  function placeholder() {
-    return createEl('span');
-  }
-  grid.appendChild(placeholder());
-  grid.appendChild(buildMiniStepper(sides.top));
-  grid.appendChild(placeholder());
-  grid.appendChild(buildMiniStepper(sides.left));
-  grid.appendChild(createEl('div', 'matrix-center'));
-  grid.appendChild(buildMiniStepper(sides.right));
-  grid.appendChild(placeholder());
-  grid.appendChild(buildMiniStepper(sides.bottom));
-  grid.appendChild(placeholder());
-  wrap.appendChild(grid);
-  return wrap;
+  const col = createEl('div', 'spacing-col');
+  col.appendChild(createEl('div', 'spacing-col-title', title));
+  col.appendChild(buildSpacingRow('top', sides.top));
+  col.appendChild(buildSpacingRow('right', sides.right));
+  col.appendChild(buildSpacingRow('bottom', sides.bottom));
+  col.appendChild(buildSpacingRow('left', sides.left));
+  return col;
 }
 
 // ── Color card ─────────────────────────────────────────────────────────────
 function buildColorBlock(prop: PropEntry): HTMLElement {
   const block = createEl('div', 'color-prop');
 
-  const head = createEl('div', 'color-head');
+  const row = createEl('div', 'crow');
   const swatch = createEl('span', 'color-swatch');
   swatch.style.background = prop.value;
   const colorInput = createEl('input');
   colorInput.type = 'color';
   colorInput.value = parseHex(prop.value) ?? '#000000';
   swatch.appendChild(colorInput);
-  head.appendChild(swatch);
-  head.appendChild(createEl('span', 'color-label', shortLabel(prop.prop)));
-  block.appendChild(head);
-
-  const value = createEl('div', 'color-value', prop.value);
-  block.appendChild(value);
+  row.appendChild(swatch);
+  row.appendChild(createEl('span', 'crow-label', shortLabel(prop.prop)));
+  const value = createEl('span', 'crow-value', prop.value);
+  row.appendChild(value);
 
   const stepper = createEl('div', 'stepper');
   const name = createEl('button', 'stepper-name');
@@ -1033,7 +1031,8 @@ function buildColorBlock(prop: PropEntry): HTMLElement {
 
   stepper.appendChild(name);
   stepper.appendChild(arrows);
-  block.appendChild(stepper);
+  row.appendChild(stepper);
+  block.appendChild(row);
 
   // Swatch grid — every color token visible at a glance.
   const grid = createEl('div', 'swatch-grid');
@@ -1121,29 +1120,34 @@ function buildSpacingCard(spacingProps: PropEntry[], gapProp: PropEntry | undefi
   const card = createEl('section', 'card');
   card.appendChild(createEl('div', 'card-label', 'Spacing'));
 
-  if (hasPadding) {
-    card.appendChild(
-      buildSpacingCross('Padding', {
-        top: findSide('padding', 'top'),
-        right: findSide('padding', 'right'),
-        bottom: findSide('padding', 'bottom'),
-        left: findSide('padding', 'left'),
-      }),
-    );
+  if (hasPadding || hasMargin) {
+    const grid = createEl('div', 'spacing-grid');
+    if (hasPadding) {
+      grid.appendChild(
+        buildSpacingColumn('Padding', {
+          top: findSide('padding', 'top'),
+          right: findSide('padding', 'right'),
+          bottom: findSide('padding', 'bottom'),
+          left: findSide('padding', 'left'),
+        }),
+      );
+    }
+    if (hasMargin) {
+      grid.appendChild(
+        buildSpacingColumn('Margin', {
+          top: findSide('margin', 'top'),
+          right: findSide('margin', 'right'),
+          bottom: findSide('margin', 'bottom'),
+          left: findSide('margin', 'left'),
+        }),
+      );
+    }
+    card.appendChild(grid);
   }
-  if (hasMargin) {
-    card.appendChild(
-      buildSpacingCross('Margin', {
-        top: findSide('margin', 'top'),
-        right: findSide('margin', 'right'),
-        bottom: findSide('margin', 'bottom'),
-        left: findSide('margin', 'left'),
-      }),
-    );
-  }
+
   if (gapProp) {
     const gapBlock = buildPropertyBlock(gapProp);
-    gapBlock.style.marginTop = '14px';
+    gapBlock.style.marginTop = '12px';
     card.appendChild(gapBlock);
   }
   return card;
