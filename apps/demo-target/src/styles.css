@@ -30,6 +30,14 @@
   --typography-weight-medium: 500;
   --typography-weight-semibold: 600;
 
+  --typography-lineHeight-tight: 1.15;
+  --typography-lineHeight-normal: 1.5;
+  --typography-lineHeight-relaxed: 1.75;
+
+  --typography-letterSpacing-tight: -0.025em;
+  --typography-letterSpacing-normal: 0em;
+  --typography-letterSpacing-wide: 0.05em;
+
   --spacing-1: 0.25rem;
   --spacing-2: 0.5rem;
   --spacing-4: 1rem;
@@ -61,17 +69,26 @@
 .text-hero {
   font-size: var(--typography-size-2xl);
   font-weight: var(--typography-weight-semibold);
-  line-height: 1.15;
+  line-height: var(--typography-lineHeight-tight);
+  letter-spacing: var(--typography-letterSpacing-tight);
 }
 .text-title {
   font-size: var(--typography-size-xl);
   font-weight: var(--typography-weight-semibold);
+  line-height: var(--typography-lineHeight-tight);
 }
 .text-body {
   font-size: var(--typography-size-base);
+  line-height: var(--typography-lineHeight-relaxed);
 }
 .text-caption {
   font-size: var(--typography-size-sm);
+  line-height: var(--typography-lineHeight-normal);
+}
+.text-eyebrow {
+  font-size: var(--typography-size-sm);
+  letter-spacing: var(--typography-letterSpacing-wide);
+  text-transform: uppercase;
 }
 
 .shadow-token-sm {

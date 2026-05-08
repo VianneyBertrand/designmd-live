@@ -44,6 +44,22 @@ export function isValidShadow(value: string): boolean {
   return el.style.boxShadow !== '';
 }
 
+export function isValidLineHeight(value: string): boolean {
+  const el = getProbe();
+  if (!el) return true;
+  el.style.lineHeight = '';
+  el.style.lineHeight = value;
+  return el.style.lineHeight !== '';
+}
+
+export function isValidLetterSpacing(value: string): boolean {
+  const el = getProbe();
+  if (!el) return true;
+  el.style.letterSpacing = '';
+  el.style.letterSpacing = value;
+  return el.style.letterSpacing !== '';
+}
+
 export function validateValue(kind: TokenKind, value: string): string | null {
   if (!value.trim()) return 'Value cannot be empty';
 
@@ -52,9 +68,11 @@ export function validateValue(kind: TokenKind, value: string): string | null {
       return isValidColor(value) ? null : 'Not a valid CSS color';
     case 'dimension':
     case 'fontSize':
-    case 'lineHeight':
-    case 'letterSpacing':
       return isValidDimension(value) ? null : 'Not a valid CSS dimension';
+    case 'lineHeight':
+      return isValidLineHeight(value) ? null : 'Not a valid line-height (unitless or dimension)';
+    case 'letterSpacing':
+      return isValidLetterSpacing(value) ? null : 'Not a valid letter-spacing';
     case 'duration':
       return isValidDuration(value) ? null : 'Not a valid CSS duration (e.g. 200ms)';
     case 'shadow':

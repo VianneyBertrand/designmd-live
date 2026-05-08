@@ -66,6 +66,26 @@ typography:
     semibold:
       $value: 600
       $type: fontWeight
+  lineHeight:
+    tight:
+      $value: 1.15
+      $type: lineHeight
+    normal:
+      $value: 1.5
+      $type: lineHeight
+    relaxed:
+      $value: 1.75
+      $type: lineHeight
+  letterSpacing:
+    tight:
+      $value: -0.025em
+      $type: letterSpacing
+    normal:
+      $value: 0em
+      $type: letterSpacing
+    wide:
+      $value: 0.05em
+      $type: letterSpacing
 
 spacing:
   1:

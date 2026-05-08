@@ -113,6 +113,34 @@ function Sample({ token, onChange }: { token: FlatToken; onChange: (value: strin
     );
   }
 
+  if (kind === 'lineHeight') {
+    const lh = typeof value === 'number' || typeof value === 'string' ? value : 1.5;
+    return (
+      <span
+        className="inline-flex w-6 shrink-0 flex-col items-stretch justify-center gap-0"
+        style={{ fontSize: '0.45rem', lineHeight: lh, fontFamily: 'monospace' }}
+        aria-hidden="true"
+      >
+        <span className="block bg-foreground/70" style={{ height: '1px' }} />
+        <span className="block bg-foreground/70" style={{ height: '1px' }} />
+        <span className="block bg-foreground/70" style={{ height: '1px' }} />
+      </span>
+    );
+  }
+
+  if (kind === 'letterSpacing') {
+    const ls = typeof value === 'string' ? value : '0';
+    return (
+      <span
+        className="inline-block w-6 shrink-0 text-center text-xs"
+        style={{ letterSpacing: ls }}
+        aria-hidden="true"
+      >
+        Aa
+      </span>
+    );
+  }
+
   if (kind === 'shadow') {
     const css = typeof value === 'string' ? value : objectShadowToCss(value);
     return (

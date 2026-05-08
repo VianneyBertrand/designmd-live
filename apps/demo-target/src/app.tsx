@@ -32,7 +32,7 @@ export function App() {
 
       <main className="mx-auto max-w-5xl p-8">
         <section className="py-12">
-          <p className="mb-2 inline-block rounded-md bg-brand-50 px-3 py-1 text-caption text-brand-900">
+          <p className="text-eyebrow mb-2 inline-block rounded-md bg-brand-50 px-3 py-1 text-brand-900">
             New · Live token editing
           </p>
           <h1 className="text-hero">
