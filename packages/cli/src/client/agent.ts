@@ -222,8 +222,8 @@ function inspectElement(el: Element): PropEntry[] {
   return props;
 }
 
-// ── Hover overlay ──────────────────────────────────────────────────────────
-function ensureOverlay(): { box: HTMLElement; label: HTMLElement } {
+// ── Hover overlay (outline only — token details live in the panel) ─────────
+function ensureOverlay(): HTMLElement {
   let box = document.getElementById(OVERLAY_ID) as HTMLElement | null;
   if (!box) {
     box = document.createElement('div');
@@ -239,48 +239,15 @@ function ensureOverlay(): { box: HTMLElement; label: HTMLElement } {
     } as CSSStyleDeclaration);
     document.body.appendChild(box);
   }
-  let label = document.getElementById(LABEL_ID) as HTMLElement | null;
-  if (!label) {
-    label = document.createElement('div');
-    label.id = LABEL_ID;
-    Object.assign(label.style, {
-      position: 'fixed',
-      pointerEvents: 'none',
-      zIndex: '2147483647',
-      background: SURFACE,
-      color: INK_1,
-      padding: '8px 10px',
-      borderRadius: '6px',
-      font: '13px ui-monospace, "SF Mono", "JetBrains Mono", monospace',
-      lineHeight: '1.4',
-      whiteSpace: 'pre',
-      boxShadow: '0 4px 16px rgba(0,0,0,0.30)',
-      maxWidth: '420px',
-      border: `1px solid ${BORDER}`,
-    } as CSSStyleDeclaration);
-    document.body.appendChild(label);
-  }
-  return { box, label };
+  return box;
 }
 
 function removeOverlay(): void {
   document.getElementById(OVERLAY_ID)?.remove();
-  document.getElementById(LABEL_ID)?.remove();
-}
-
-function formatHoverLabel(el: Element, props: PropEntry[]): string {
-  const tag = `<${el.tagName.toLowerCase()}>`;
-  const matches = props.filter((p) => p.tokens.length > 0);
-  if (matches.length === 0) return `${tag}\n  no matching tokens`;
-  const lines = matches.slice(0, 8).map((p) => {
-    const t = p.tokens[0]!.path.join('.');
-    return `  ${p.prop}: ${t}`;
-  });
-  return `${tag}\n${lines.join('\n')}`;
 }
 
 function placeOverlay(el: Element): void {
-  const { box, label } = ensureOverlay();
+  const box = ensureOverlay();
   const r = el.getBoundingClientRect();
   Object.assign(box.style, {
     left: `${r.left}px`,
@@ -288,15 +255,6 @@ function placeOverlay(el: Element): void {
     width: `${r.width}px`,
     height: `${r.height}px`,
   });
-  label.textContent = formatHoverLabel(el, inspectElement(el));
-  const lr = label.getBoundingClientRect();
-  let lx = r.left;
-  let ly = r.bottom + 6;
-  if (ly + lr.height > window.innerHeight) ly = r.top - lr.height - 6;
-  if (lx + lr.width > window.innerWidth) lx = window.innerWidth - lr.width - 8;
-  if (lx < 4) lx = 4;
-  label.style.left = `${lx}px`;
-  label.style.top = `${ly}px`;
 }
 
 // ── Edit panel styles ──────────────────────────────────────────────────────
@@ -1364,7 +1322,7 @@ function isAgentNode(el: Element | null): boolean {
   let cur: Element | null = el;
   while (cur) {
     const id = cur.id;
-    if (id === OVERLAY_ID || id === LABEL_ID || id === PANEL_ID || id === DROPDOWN_ID) return true;
+    if (id === OVERLAY_ID || id === PANEL_ID || id === DROPDOWN_ID) return true;
     cur = cur.parentElement;
   }
   return false;
