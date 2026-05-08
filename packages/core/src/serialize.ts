@@ -1,4 +1,5 @@
 import yaml from 'js-yaml';
+import type { TokenValue } from './flatten.ts';
 import type { DesignMd, DesignTokens } from './schema.ts';
 
 export function serializeDesignMd(doc: DesignMd): string {
@@ -14,7 +15,7 @@ export function serializeDesignMd(doc: DesignMd): string {
 export function setTokenAtPath(
   tokens: DesignTokens,
   path: string[],
-  value: string | string[],
+  value: TokenValue,
 ): DesignTokens {
   if (path.length === 0) return tokens;
   return setIn(tokens as Record<string, unknown>, path, value) as DesignTokens;
@@ -23,7 +24,7 @@ export function setTokenAtPath(
 function setIn(
   obj: Record<string, unknown>,
   path: string[],
-  value: string | string[],
+  value: TokenValue,
 ): Record<string, unknown> {
   const [head, ...rest] = path;
   if (head === undefined) return obj;

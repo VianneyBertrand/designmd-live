@@ -1,44 +1,30 @@
 import { z } from 'zod';
 
-const ColorTokenSchema = z.object({
-  $value: z.string(),
-  $type: z.literal('color').optional(),
+/**
+ * DTCG-shaped token leaf. We accept the full breadth of $value types
+ * (string for color/dimension, array for fontFamily/cubic-bezier,
+ * number for opacity/zIndex, object for shadow/typography composites)
+ * and let the renderer fall back to a textual sample when the type is
+ * unknown.
+ */
+const TokenLeafSchema = z.object({
+  $value: z.unknown(),
+  $type: z.string().optional(),
   $description: z.string().optional(),
 });
 
-const DimensionTokenSchema = z.object({
-  $value: z.string(),
-  $type: z.literal('dimension').optional(),
-  $description: z.string().optional(),
-});
+export type TokenLeaf = z.infer<typeof TokenLeafSchema>;
 
-const FontFamilyTokenSchema = z.object({
-  $value: z.union([z.string(), z.array(z.string())]),
-  $type: z.literal('fontFamily').optional(),
-  $description: z.string().optional(),
-});
+export interface TokenGroup {
+  [k: string]: TokenLeaf | TokenGroup;
+}
 
 const TokenGroupSchema: z.ZodType<TokenGroup> = z.lazy(() =>
-  z.record(
-    z.union([ColorTokenSchema, DimensionTokenSchema, FontFamilyTokenSchema, TokenGroupSchema]),
-  ),
+  z.record(z.union([TokenLeafSchema, TokenGroupSchema])),
 );
 
-type Token =
-  | z.infer<typeof ColorTokenSchema>
-  | z.infer<typeof DimensionTokenSchema>
-  | z.infer<typeof FontFamilyTokenSchema>;
-
-type TokenGroup = { [k: string]: Token | TokenGroup };
-
-export const DesignTokensSchema = z.object({
-  color: TokenGroupSchema.optional(),
-  typography: TokenGroupSchema.optional(),
-  spacing: TokenGroupSchema.optional(),
-  radius: TokenGroupSchema.optional(),
-});
-
-export type DesignTokens = z.infer<typeof DesignTokensSchema>;
+export const DesignTokensSchema = TokenGroupSchema;
+export type DesignTokens = TokenGroup;
 
 export const DesignMdSchema = z.object({
   tokens: DesignTokensSchema,

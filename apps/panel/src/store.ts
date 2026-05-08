@@ -5,6 +5,7 @@ import {
   parseDesignMd,
   serializeDesignMd,
   setTokenAtPath,
+  type TokenValue,
 } from '@designmd-live/core';
 import { create } from 'zustand';
 import { broadcast, type Incoming, onWsMessage } from './lib/ws.ts';
@@ -18,7 +19,7 @@ interface DesignState {
   externalChange: boolean;
   error: string | null;
   load: () => Promise<void>;
-  setTokenValue: (path: string[], value: string | string[]) => void;
+  setTokenValue: (path: string[], value: TokenValue) => void;
   save: () => Promise<void>;
   dismissExternalChange: () => void;
 }

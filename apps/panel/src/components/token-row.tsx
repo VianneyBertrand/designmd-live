@@ -1,4 +1,4 @@
-import type { FlatToken } from '@designmd-live/core';
+import type { FlatToken, TokenKind } from '@designmd-live/core';
 import { useEffect, useRef, useState } from 'react';
 import { hexToOklch, oklchToHex } from '../lib/color.ts';
 import { validateValue } from '../lib/validate.ts';
@@ -8,18 +8,28 @@ interface Props {
   token: FlatToken;
 }
 
+function valueToString(value: FlatToken['value']): string {
+  if (Array.isArray(value)) return value.join(', ');
+  if (typeof value === 'object' && value !== null) return JSON.stringify(value);
+  return String(value);
+}
+
 export function TokenRow({ token }: Props) {
   const setTokenValue = useDesign((s) => s.setTokenValue);
   const name = token.path.join('.');
-  const stringValue = Array.isArray(token.value) ? token.value.join(', ') : token.value;
+  const stringValue = valueToString(token.value);
+  const editable = typeof token.value !== 'object' || Array.isArray(token.value);
 
   const handleChange = (next: string) => {
-    if (token.type === 'fontFamily') {
+    if (token.kind === 'fontFamily') {
       const arr = next
         .split(',')
         .map((s) => s.trim())
         .filter(Boolean);
       setTokenValue(token.path, arr);
+    } else if (token.kind === 'opacity' || token.kind === 'fontWeight' || token.kind === 'number') {
+      const num = Number(next);
+      setTokenValue(token.path, Number.isFinite(num) ? num : next);
     } else {
       setTokenValue(token.path, next);
     }
@@ -34,17 +44,29 @@ export function TokenRow({ token }: Props) {
           <span className="text-xs text-muted-foreground">{token.description}</span>
         ) : null}
       </div>
-      <ValueInput token={token} value={stringValue} onCommit={handleChange} />
+      {editable ? (
+        <ValueInput kind={token.kind} value={stringValue} onCommit={handleChange} />
+      ) : (
+        <span
+          className="w-56 truncate text-right font-mono text-xs text-muted-foreground"
+          title={stringValue}
+        >
+          {stringValue}
+        </span>
+      )}
     </li>
   );
 }
 
 function Sample({ token, onChange }: { token: FlatToken; onChange: (value: string) => void }) {
-  if (token.type === 'color' && typeof token.value === 'string') {
-    return <ColorSwatch value={token.value} onChange={onChange} />;
+  const { kind, value } = token;
+
+  if (kind === 'color' && typeof value === 'string') {
+    return <ColorSwatch value={value} onChange={onChange} />;
   }
-  if (token.type === 'fontFamily') {
-    const family = Array.isArray(token.value) ? token.value.join(', ') : token.value;
+
+  if (kind === 'fontFamily') {
+    const family = Array.isArray(value) ? value.join(', ') : String(value);
     return (
       <span
         className="inline-block w-6 shrink-0 text-center text-base"
@@ -55,16 +77,95 @@ function Sample({ token, onChange }: { token: FlatToken; onChange: (value: strin
       </span>
     );
   }
-  if (token.type === 'dimension' && typeof token.value === 'string') {
+
+  if (kind === 'fontSize' && typeof value === 'string') {
+    return (
+      <span
+        className="inline-block w-6 shrink-0 text-center"
+        style={{ fontSize: value, lineHeight: 1 }}
+        aria-hidden="true"
+      >
+        A
+      </span>
+    );
+  }
+
+  if (kind === 'fontWeight') {
+    const weight = typeof value === 'number' || typeof value === 'string' ? value : 400;
+    return (
+      <span
+        className="inline-block w-6 shrink-0 text-center text-sm"
+        style={{ fontWeight: weight }}
+        aria-hidden="true"
+      >
+        Aa
+      </span>
+    );
+  }
+
+  if (kind === 'dimension' && typeof value === 'string') {
     return (
       <span
         className="inline-block shrink-0 rounded bg-muted"
-        style={{ width: token.value, height: '1.25rem' }}
+        style={{ width: value, height: '1.25rem' }}
         aria-hidden="true"
       />
     );
   }
-  return <span className="inline-block size-6 shrink-0" aria-hidden="true" />;
+
+  if (kind === 'shadow') {
+    const css = typeof value === 'string' ? value : objectShadowToCss(value);
+    return (
+      <span
+        className="inline-block size-6 shrink-0 rounded bg-background"
+        style={{ boxShadow: css ?? 'none' }}
+        aria-hidden="true"
+      />
+    );
+  }
+
+  if (kind === 'opacity') {
+    const op = Number(value);
+    const display = Number.isFinite(op) ? op : 1;
+    return (
+      <span
+        className="inline-block size-6 shrink-0 rounded bg-foreground"
+        style={{ opacity: display }}
+        aria-hidden="true"
+      />
+    );
+  }
+
+  if (kind === 'duration') {
+    return (
+      <span
+        className="inline-block size-6 shrink-0 rounded bg-muted text-center font-mono text-[10px] leading-6 text-muted-foreground"
+        aria-hidden="true"
+      >
+        ⏱
+      </span>
+    );
+  }
+
+  return (
+    <span
+      className="inline-block size-6 shrink-0 rounded bg-muted text-center text-[10px] leading-6 text-muted-foreground"
+      aria-hidden="true"
+    >
+      ?
+    </span>
+  );
+}
+
+function objectShadowToCss(value: FlatToken['value']): string | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const obj = value as Record<string, unknown>;
+  const offsetX = String(obj.offsetX ?? '0');
+  const offsetY = String(obj.offsetY ?? '0');
+  const blur = String(obj.blur ?? '0');
+  const spread = String(obj.spread ?? '0');
+  const color = String(obj.color ?? 'rgba(0,0,0,0.1)');
+  return `${offsetX} ${offsetY} ${blur} ${spread} ${color}`;
 }
 
 function ColorSwatch({ value, onChange }: { value: string; onChange: (value: string) => void }) {
@@ -96,11 +197,11 @@ function ColorSwatch({ value, onChange }: { value: string; onChange: (value: str
 }
 
 function ValueInput({
-  token,
+  kind,
   value,
   onCommit,
 }: {
-  token: FlatToken;
+  kind: TokenKind;
   value: string;
   onCommit: (value: string) => void;
 }) {
@@ -112,7 +213,7 @@ function ValueInput({
     setError(null);
   }, [value]);
 
-  const validate = (next: string) => validateValue(token.type, next);
+  const validate = (next: string) => validateValue(kind, next);
 
   return (
     <div className="flex w-56 flex-col items-end">
@@ -127,7 +228,7 @@ function ValueInput({
           if (draft === value) return;
           const err = validate(draft);
           if (err) {
-            setDraft(value); // revert
+            setDraft(value);
             setError(null);
             return;
           }

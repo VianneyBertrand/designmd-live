@@ -1,8 +1,4 @@
-/**
- * Best-effort value validators for DTCG token values.
- * Uses the browser's CSS parser (a stash <div>) to verify that a
- * string is accepted by the engine — quick and accurate.
- */
+import type { TokenKind } from '@designmd-live/core';
 
 let probe: HTMLDivElement | null = null;
 
@@ -18,14 +14,13 @@ function getProbe(): HTMLDivElement | null {
 
 export function isValidColor(value: string): boolean {
   const el = getProbe();
-  if (!el) return true; // SSR / no DOM: don't block
+  if (!el) return true;
   el.style.color = '';
   el.style.color = value;
   return el.style.color !== '';
 }
 
 export function isValidDimension(value: string): boolean {
-  // Accept rem, em, px, %, and CSS function calls. Leverage the parser too.
   const el = getProbe();
   if (!el) return true;
   el.style.width = '';
@@ -33,12 +28,52 @@ export function isValidDimension(value: string): boolean {
   return el.style.width !== '';
 }
 
-export function validateValue(
-  type: 'color' | 'dimension' | 'fontFamily' | 'unknown',
-  value: string,
-): string | null {
+export function isValidDuration(value: string): boolean {
+  const el = getProbe();
+  if (!el) return true;
+  el.style.transitionDuration = '';
+  el.style.transitionDuration = value;
+  return el.style.transitionDuration !== '';
+}
+
+export function isValidShadow(value: string): boolean {
+  const el = getProbe();
+  if (!el) return true;
+  el.style.boxShadow = '';
+  el.style.boxShadow = value;
+  return el.style.boxShadow !== '';
+}
+
+export function validateValue(kind: TokenKind, value: string): string | null {
   if (!value.trim()) return 'Value cannot be empty';
-  if (type === 'color' && !isValidColor(value)) return 'Not a valid CSS color';
-  if (type === 'dimension' && !isValidDimension(value)) return 'Not a valid CSS dimension';
-  return null;
+
+  switch (kind) {
+    case 'color':
+      return isValidColor(value) ? null : 'Not a valid CSS color';
+    case 'dimension':
+    case 'fontSize':
+    case 'lineHeight':
+    case 'letterSpacing':
+      return isValidDimension(value) ? null : 'Not a valid CSS dimension';
+    case 'duration':
+      return isValidDuration(value) ? null : 'Not a valid CSS duration (e.g. 200ms)';
+    case 'shadow':
+      return isValidShadow(value) ? null : 'Not a valid CSS box-shadow';
+    case 'opacity': {
+      const n = Number(value);
+      return Number.isFinite(n) && n >= 0 && n <= 1
+        ? null
+        : 'Opacity must be a number between 0 and 1';
+    }
+    case 'fontWeight': {
+      const n = Number(value);
+      return Number.isFinite(n) && n >= 100 && n <= 900 ? null : 'Font weight should be 100–900';
+    }
+    case 'number': {
+      const n = Number(value);
+      return Number.isFinite(n) ? null : 'Must be a number';
+    }
+    default:
+      return null;
+  }
 }

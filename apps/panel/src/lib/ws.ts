@@ -1,14 +1,14 @@
-import type { FlatToken } from '@designmd-live/core';
+import type { FlatToken, TokenValue } from '@designmd-live/core';
 
 export type Outgoing =
   | { type: 'hello'; role: 'panel' }
-  | { type: 'token-update'; path: string[]; value: string | string[] }
+  | { type: 'token-update'; path: string[]; value: TokenValue }
   | { type: 'snapshot'; tokens: Pick<FlatToken, 'path' | 'value'>[] }
   | { type: 'reset' };
 
 export type Incoming =
   | { type: 'snapshot'; tokens: Pick<FlatToken, 'path' | 'value'>[]; source?: string }
-  | { type: 'token-update'; path: string[]; value: string | string[] }
+  | { type: 'token-update'; path: string[]; value: TokenValue }
   | { type: 'reset' };
 
 export type WsStatus = 'connecting' | 'open' | 'closed';
