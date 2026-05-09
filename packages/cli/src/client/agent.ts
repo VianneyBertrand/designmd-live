@@ -16,7 +16,8 @@ type PropKind =
   | 'letterSpacing'
   | 'shadow'
   | 'opacity'
-  | 'duration';
+  | 'duration'
+  | 'borderWidth';
 
 interface PropEntry {
   prop: string;
@@ -38,6 +39,7 @@ const LABEL_ID = 'designmd-live-label';
 const PANEL_ID = 'designmd-live-edit-panel';
 const STYLES_ID = 'designmd-live-edit-styles';
 const DROPDOWN_ID = 'designmd-live-dropdown';
+const POPOVER_ID = 'designmd-live-popover';
 
 const CHEVRON_LEFT = '<svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 14L8 10L12 6"/></svg>';
 const CHEVRON_RIGHT = '<svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6L12 10L8 14"/></svg>';
@@ -60,7 +62,14 @@ const tokens: CachedToken[] = [];
 let inspectMode = false;
 let hoverEl: Element | null = null;
 let selectedEl: Element | null = null;
+let hoverGap: GapTarget | null = null;
+let selectedGap: GapTarget | null = null;
 let editPanel: HTMLElement | null = null;
+// Active token stepper exposed for keyboard-driven cycling. Set by either
+// the gap card (gap selected) or the property popover (row focused), unified
+// so the global keydown handler doesn't have to know which UI is driving it.
+let activeStepperRef: { step: (delta: number) => void } | null = null;
+let propertyPopover: HTMLElement | null = null;
 let activeWs: WebSocket | null = null;
 let retry = 0;
 
@@ -166,6 +175,7 @@ function pathHintMatches(path: string[], hint: PropKind): boolean {
     return path[0] === 'typography' && (path[1] === 'letterSpacing' || path[1] === 'tracking');
   if (hint === 'opacity') return path[0] === 'opacity';
   if (hint === 'duration') return path[0] === 'duration' || path[0] === 'motion';
+  if (hint === 'borderWidth') return path[0] === 'border' || path[0] === 'borderWidth';
   return true;
 }
 
@@ -218,7 +228,23 @@ function inspectElement(el: Element): PropEntry[] {
   add('margin-left', cs.marginLeft, 'spacing');
   add('gap', cs.gap, 'spacing');
   add('border-radius', cs.borderTopLeftRadius, 'radius');
+  // Border (single representative side; surface-level info)
+  const bw = cs.borderTopWidth;
+  const hasBorder = bw && bw !== '0px';
+  if (hasBorder) add('border-width', bw, 'borderWidth');
+  // Only surface border-color when there's an actual border — otherwise the
+  // computed value is `currentColor` (= the text color) and shows up as noise.
+  if (hasBorder) {
+    const bc = cs.borderTopColor;
+    if (bc && bc !== 'rgba(0, 0, 0, 0)' && bc !== 'transparent') {
+      add('border-color', bc, 'color');
+    }
+  }
   add('box-shadow', cs.boxShadow, 'shadow');
+  if (cs.opacity && cs.opacity !== '1') add('opacity', cs.opacity, 'opacity');
+  if (cs.transitionDuration && cs.transitionDuration !== '0s') {
+    add('transition-duration', cs.transitionDuration, 'duration');
+  }
   return props;
 }
 
@@ -254,6 +280,499 @@ function placeOverlay(el: Element): void {
     top: `${r.top}px`,
     width: `${r.width}px`,
     height: `${r.height}px`,
+    background: 'transparent',
+    border: `2px solid ${ACCENT}`,
+    borderRadius: '3px',
+  });
+}
+
+// ── Gap detection ─────────────────────────────────────────────────────────
+type GapAxis = 'vertical' | 'horizontal';
+
+type SpacingProp =
+  | 'row-gap'
+  | 'column-gap'
+  | 'gap'
+  | 'margin-top'
+  | 'margin-bottom'
+  | 'margin-left'
+  | 'margin-right'
+  | 'padding-top'
+  | 'padding-bottom'
+  | 'padding-left'
+  | 'padding-right';
+
+interface GapSource {
+  kind: 'parentGap' | 'margin' | 'padding';
+  el: Element;
+  prop: SpacingProp;
+  value: string;
+}
+
+interface GapTarget {
+  parent: Element;
+  before: Element;
+  after: Element;
+  axis: GapAxis;
+  rect: { left: number; right: number; top: number; bottom: number };
+  source: GapSource;
+}
+
+function isVisibleChild(el: Element): boolean {
+  const cs = getComputedStyle(el);
+  if (cs.display === 'none' || cs.visibility === 'hidden') return false;
+  const r = el.getBoundingClientRect();
+  return r.width > 0 && r.height > 0;
+}
+
+function pxOrZero(v: string): number {
+  const n = parseFloat(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function resolveGapSource(
+  parent: Element,
+  before: Element,
+  after: Element,
+  axis: GapAxis,
+): GapSource {
+  const cs = getComputedStyle(parent);
+  const display = cs.display;
+  const isFlexOrGrid =
+    display === 'flex' ||
+    display === 'inline-flex' ||
+    display === 'grid' ||
+    display === 'inline-grid';
+  const gapValue = axis === 'vertical' ? cs.rowGap : cs.columnGap;
+  if (
+    isFlexOrGrid &&
+    gapValue &&
+    gapValue !== 'normal' &&
+    gapValue !== '0px' &&
+    gapValue !== '0'
+  ) {
+    return {
+      kind: 'parentGap',
+      el: parent,
+      prop: axis === 'vertical' ? 'row-gap' : 'column-gap',
+      value: gapValue,
+    };
+  }
+  // Block flow / no parent gap: the visual gap can come from before's
+  // trailing margin OR after's leading margin (or both, with collapse).
+  // Pick whichever is non-zero, preferring the larger one.
+  const beforeCs = getComputedStyle(before);
+  const afterCs = getComputedStyle(after);
+  const beforeProp = axis === 'vertical' ? 'margin-bottom' : 'margin-right';
+  const afterProp = axis === 'vertical' ? 'margin-top' : 'margin-left';
+  const beforeVal = axis === 'vertical' ? beforeCs.marginBottom : beforeCs.marginRight;
+  const afterVal = axis === 'vertical' ? afterCs.marginTop : afterCs.marginLeft;
+  const beforePx = pxOrZero(beforeVal);
+  const afterPx = pxOrZero(afterVal);
+  if (afterPx > beforePx) {
+    return { kind: 'margin', el: after, prop: afterProp, value: afterVal };
+  }
+  return { kind: 'margin', el: before, prop: beforeProp, value: beforeVal };
+}
+
+function findGapInChildren(parent: Element, x: number, y: number): GapTarget | null {
+  const children = Array.from(parent.children).filter(isVisibleChild);
+  if (children.length < 2) return null;
+
+  // Vertical gaps: sort by top, look for gap between consecutive rects.
+  const vSorted = [...children].sort(
+    (a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top,
+  );
+  for (let i = 0; i < vSorted.length - 1; i++) {
+    const ar = vSorted[i]!.getBoundingClientRect();
+    const br = vSorted[i + 1]!.getBoundingClientRect();
+    if (ar.bottom < br.top - 0.5) {
+      const left = Math.min(ar.left, br.left);
+      const right = Math.max(ar.right, br.right);
+      if (x >= left && x <= right && y >= ar.bottom && y <= br.top) {
+        return {
+          parent,
+          before: vSorted[i]!,
+          after: vSorted[i + 1]!,
+          axis: 'vertical',
+          rect: { left, right, top: ar.bottom, bottom: br.top },
+          source: resolveGapSource(parent, vSorted[i]!, vSorted[i + 1]!, 'vertical'),
+        };
+      }
+    }
+  }
+
+  // Horizontal gaps: sort by left.
+  const hSorted = [...children].sort(
+    (a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left,
+  );
+  for (let i = 0; i < hSorted.length - 1; i++) {
+    const ar = hSorted[i]!.getBoundingClientRect();
+    const br = hSorted[i + 1]!.getBoundingClientRect();
+    if (ar.right < br.left - 0.5) {
+      const top = Math.min(ar.top, br.top);
+      const bottom = Math.max(ar.bottom, br.bottom);
+      if (x >= ar.right && x <= br.left && y >= top && y <= bottom) {
+        return {
+          parent,
+          before: hSorted[i]!,
+          after: hSorted[i + 1]!,
+          axis: 'horizontal',
+          rect: { left: ar.right, right: br.left, top, bottom },
+          source: resolveGapSource(parent, hSorted[i]!, hSorted[i + 1]!, 'horizontal'),
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
+function sameGap(a: GapTarget, b: GapTarget): boolean {
+  return a.parent === b.parent && a.before === b.before && a.after === b.after && a.axis === b.axis;
+}
+
+// Vertical empty zone in the BOTTOM padding of `el` (between its last visible
+// child and `el`'s content edge / next sibling). Source = bigger of
+// el.padding-bottom vs nextSibling.margin-top.
+function findTrailingGapV(el: Element, x: number, y: number): GapTarget | null {
+  const r = el.getBoundingClientRect();
+  if (x < r.left || x > r.right) return null;
+  const children = Array.from(el.children).filter(isVisibleChild);
+  if (children.length === 0) return null;
+  let maxBottom = -Infinity;
+  for (const c of children) maxBottom = Math.max(maxBottom, c.getBoundingClientRect().bottom);
+  if (!Number.isFinite(maxBottom)) return null;
+  // The trailing zone extends from the last child's bottom to the next
+  // sibling's top (or el's bottom edge if no next sibling).
+  let zoneBottom = r.bottom;
+  let nextSibling: Element | null = null;
+  const next = el.nextElementSibling;
+  if (next && isVisibleChild(next)) {
+    const nr = next.getBoundingClientRect();
+    if (nr.top > r.bottom) zoneBottom = nr.top;
+    nextSibling = next;
+  }
+  if (y <= maxBottom || y > zoneBottom) return null;
+  const cs = getComputedStyle(el);
+  const padBot = pxOrZero(cs.paddingBottom);
+  const mt = nextSibling ? pxOrZero(getComputedStyle(nextSibling).marginTop) : 0;
+  let source: GapSource;
+  if (mt > padBot && nextSibling) {
+    source = {
+      kind: 'margin',
+      el: nextSibling,
+      prop: 'margin-top',
+      value: getComputedStyle(nextSibling).marginTop,
+    };
+  } else {
+    source = { kind: 'padding', el, prop: 'padding-bottom', value: cs.paddingBottom };
+  }
+  return {
+    parent: el,
+    before: el,
+    after: nextSibling ?? el,
+    axis: 'vertical',
+    rect: { left: r.left, right: r.right, top: maxBottom, bottom: zoneBottom },
+    source,
+  };
+}
+
+// Symmetric: empty zone in the TOP padding of `el`.
+function findLeadingGapV(el: Element, x: number, y: number): GapTarget | null {
+  const r = el.getBoundingClientRect();
+  if (x < r.left || x > r.right) return null;
+  const children = Array.from(el.children).filter(isVisibleChild);
+  if (children.length === 0) return null;
+  let minTop = Infinity;
+  for (const c of children) minTop = Math.min(minTop, c.getBoundingClientRect().top);
+  if (!Number.isFinite(minTop)) return null;
+  let zoneTop = r.top;
+  let prevSibling: Element | null = null;
+  const prev = el.previousElementSibling;
+  if (prev && isVisibleChild(prev)) {
+    const pr = prev.getBoundingClientRect();
+    if (pr.bottom < r.top) zoneTop = pr.bottom;
+    prevSibling = prev;
+  }
+  if (y < zoneTop || y >= minTop) return null;
+  const cs = getComputedStyle(el);
+  const padTop = pxOrZero(cs.paddingTop);
+  const mb = prevSibling ? pxOrZero(getComputedStyle(prevSibling).marginBottom) : 0;
+  let source: GapSource;
+  if (mb > padTop && prevSibling) {
+    source = {
+      kind: 'margin',
+      el: prevSibling,
+      prop: 'margin-bottom',
+      value: getComputedStyle(prevSibling).marginBottom,
+    };
+  } else {
+    source = { kind: 'padding', el, prop: 'padding-top', value: cs.paddingTop };
+  }
+  return {
+    parent: el,
+    before: prevSibling ?? el,
+    after: el,
+    axis: 'vertical',
+    rect: { left: r.left, right: r.right, top: zoneTop, bottom: minTop },
+    source,
+  };
+}
+
+// ── Tailwind utility detection (Phase 1: spacing only) ───────────────────
+// Map a CSS property to the Tailwind utility prefixes that affect it,
+// ordered by specificity (most-specific first).
+const UTILITY_PREFIXES: Record<string, string[]> = {
+  'margin-top': ['mt-', 'my-', 'm-'],
+  'margin-bottom': ['mb-', 'my-', 'm-'],
+  'margin-left': ['ml-', 'mx-', 'm-'],
+  'margin-right': ['mr-', 'mx-', 'm-'],
+  'padding-top': ['pt-', 'py-', 'p-'],
+  'padding-bottom': ['pb-', 'py-', 'p-'],
+  'padding-left': ['pl-', 'px-', 'p-'],
+  'padding-right': ['pr-', 'px-', 'p-'],
+  'row-gap': ['gap-y-', 'gap-'],
+  'column-gap': ['gap-x-', 'gap-'],
+  gap: ['gap-'],
+};
+
+interface MatchedUtility {
+  prefix: string;
+  scale: string;
+  full: string; // e.g. "mt-6"
+}
+
+function findUtilityForProp(el: Element, prop: string): MatchedUtility | null {
+  const prefixes = UTILITY_PREFIXES[prop];
+  if (!prefixes) return null;
+  // classList may be empty if the className is computed at runtime — Phase 1
+  // assumes inline string classNames.
+  const classes = Array.from(el.classList);
+  for (const prefix of prefixes) {
+    for (const cls of classes) {
+      if (cls.startsWith(prefix)) {
+        const scale = cls.slice(prefix.length);
+        // Reject empty / non-scale values.
+        if (!scale) continue;
+        return { prefix, scale, full: cls };
+      }
+    }
+  }
+  return null;
+}
+
+interface SourceLoc {
+  file: string;
+  line: number;
+  col: number;
+}
+
+function readSourceLoc(el: Element): SourceLoc | null {
+  const raw = el.getAttribute('data-loc');
+  if (!raw) return null;
+  // Format: "path/to/file.tsx:LINE:COL"
+  const m = raw.match(/^(.+):(\d+):(\d+)$/);
+  if (!m) return null;
+  return { file: m[1]!, line: Number(m[2]!), col: Number(m[3]!) };
+}
+
+function spacingTokensSorted(): CachedToken[] {
+  return scaleTokensFor(['spacing']);
+}
+
+// ── Property categories (popover) ─────────────────────────────────────────
+interface PropCategory {
+  label: string;
+  utilityPrefixes: string[]; // ordered specificity-first
+  tokenPath: string[]; // root path under tokens; the next segment is the scale key
+}
+
+const PROP_CATEGORIES: PropCategory[] = [
+  // Typography
+  { label: 'Size', utilityPrefixes: ['text-'], tokenPath: ['typography', 'size'] },
+  { label: 'Weight', utilityPrefixes: ['font-'], tokenPath: ['typography', 'weight'] },
+  { label: 'Line', utilityPrefixes: ['leading-'], tokenPath: ['typography', 'lineHeight'] },
+  { label: 'Tracking', utilityPrefixes: ['tracking-'], tokenPath: ['typography', 'letterSpacing'] },
+  // Surface
+  { label: 'Radius', utilityPrefixes: ['rounded-'], tokenPath: ['radius'] },
+  // Spacing — one row per side; shows up only when the matching utility exists.
+  { label: 'Pad ↑', utilityPrefixes: ['pt-', 'py-', 'p-'], tokenPath: ['spacing'] },
+  { label: 'Pad →', utilityPrefixes: ['pr-', 'px-', 'p-'], tokenPath: ['spacing'] },
+  { label: 'Pad ↓', utilityPrefixes: ['pb-', 'py-', 'p-'], tokenPath: ['spacing'] },
+  { label: 'Pad ←', utilityPrefixes: ['pl-', 'px-', 'p-'], tokenPath: ['spacing'] },
+  { label: 'Mar ↑', utilityPrefixes: ['mt-', 'my-', 'm-'], tokenPath: ['spacing'] },
+  { label: 'Mar →', utilityPrefixes: ['mr-', 'mx-', 'm-'], tokenPath: ['spacing'] },
+  { label: 'Mar ↓', utilityPrefixes: ['mb-', 'my-', 'm-'], tokenPath: ['spacing'] },
+  { label: 'Mar ←', utilityPrefixes: ['ml-', 'mx-', 'm-'], tokenPath: ['spacing'] },
+  { label: 'Gap', utilityPrefixes: ['gap-'], tokenPath: ['spacing'] },
+];
+
+function pathStartsWith(path: string[], prefix: string[]): boolean {
+  if (path.length < prefix.length) return false;
+  for (let i = 0; i < prefix.length; i++) if (path[i] !== prefix[i]) return false;
+  return true;
+}
+
+function scaleTokensFor(tokenPath: string[]): CachedToken[] {
+  const list = tokens.filter(
+    (t) =>
+      t.path.length === tokenPath.length + 1 &&
+      pathStartsWith(t.path, tokenPath) &&
+      (typeof t.value === 'string' || typeof t.value === 'number'),
+  );
+  // Sort numerically by resolved value when possible; fall back to a stable
+  // string compare on the scale key for non-dimensional tokens (font weight
+  // names, etc.).
+  return list.sort((a, b) => {
+    const av = numericTokenValue(a);
+    const bv = numericTokenValue(b);
+    if (av != null && bv != null) return av - bv;
+    return String(a.path.at(-1)).localeCompare(String(b.path.at(-1)));
+  });
+}
+
+function numericTokenValue(t: CachedToken): number | null {
+  if (typeof t.value === 'number') return t.value;
+  if (typeof t.value === 'string') {
+    const n = parseFloat(t.value);
+    if (Number.isFinite(n)) return n;
+  }
+  const px = toPx(t.value as TokenValue);
+  return px;
+}
+
+interface CategoryMatch {
+  cat: PropCategory;
+  utility: MatchedUtility;
+  scale: CachedToken[];
+  scaleIndex: number;
+}
+
+function findCategoryMatches(el: Element): CategoryMatch[] {
+  const classes = Array.from(el.classList);
+  const out: CategoryMatch[] = [];
+  const seenLabels = new Set<string>();
+  for (const cat of PROP_CATEGORIES) {
+    const scale = scaleTokensFor(cat.tokenPath);
+    if (scale.length === 0) continue;
+    let found: MatchedUtility | null = null;
+    // First pass: prefer a utility whose suffix is a defined token (exact
+    // mapping). Second pass: accept any utility with this prefix even if
+    // unmapped — we still let the user step into a defined scale.
+    for (const requireMatch of [true, false]) {
+      if (found) break;
+      for (const prefix of cat.utilityPrefixes) {
+        for (const cls of classes) {
+          if (!cls.startsWith(prefix)) continue;
+          const scaleKey = cls.slice(prefix.length);
+          if (!scaleKey) continue;
+          if (requireMatch && !scale.some((t) => t.path.at(-1) === scaleKey)) continue;
+          found = { full: cls, scale: scaleKey, prefix };
+          break;
+        }
+        if (found) break;
+      }
+    }
+    if (!found) continue;
+    if (seenLabels.has(cat.label)) continue;
+    seenLabels.add(cat.label);
+    const idx = scale.findIndex((t) => t.path.at(-1) === found!.scale);
+    out.push({ cat, utility: found, scale, scaleIndex: idx });
+  }
+  // Collapse spacing rows that share the same source utility (e.g. `py-4`
+  // controlling both Pad ↑ and Pad ↓ should show as a single row).
+  return mergeSpacingShorthands(out);
+}
+
+function mergeSpacingShorthands(matches: CategoryMatch[]): CategoryMatch[] {
+  const SPACING_PADDING_LABELS = new Set(['Pad ↑', 'Pad →', 'Pad ↓', 'Pad ←']);
+  const SPACING_MARGIN_LABELS = new Set(['Mar ↑', 'Mar →', 'Mar ↓', 'Mar ←']);
+  const others: CategoryMatch[] = [];
+  // Group spacing-side matches by their utility.full (e.g. `py-4`).
+  const groups = new Map<string, { match: CategoryMatch; labels: Set<string>; family: 'p' | 'm' }>();
+  for (const m of matches) {
+    const isPad = SPACING_PADDING_LABELS.has(m.cat.label);
+    const isMar = SPACING_MARGIN_LABELS.has(m.cat.label);
+    if (!isPad && !isMar) {
+      others.push(m);
+      continue;
+    }
+    const key = `${isPad ? 'p' : 'm'}:${m.utility.full}`;
+    const family: 'p' | 'm' = isPad ? 'p' : 'm';
+    const existing = groups.get(key);
+    if (existing) {
+      existing.labels.add(m.cat.label);
+    } else {
+      groups.set(key, { match: m, labels: new Set([m.cat.label]), family });
+    }
+  }
+  for (const { match, labels, family } of groups.values()) {
+    const merged: CategoryMatch = {
+      ...match,
+      cat: { ...match.cat, label: combineSpacingLabel(family, labels) },
+    };
+    others.push(merged);
+  }
+  return others;
+}
+
+function combineSpacingLabel(family: 'p' | 'm', sides: Set<string>): string {
+  const prefix = family === 'p' ? 'Pad' : 'Mar';
+  const hasTop = sides.has(`${prefix} ↑`);
+  const hasRight = sides.has(`${prefix} →`);
+  const hasBottom = sides.has(`${prefix} ↓`);
+  const hasLeft = sides.has(`${prefix} ←`);
+  if (hasTop && hasRight && hasBottom && hasLeft) return prefix;
+  if (hasTop && hasBottom && !hasLeft && !hasRight) return `${prefix} ↕`;
+  if (hasLeft && hasRight && !hasTop && !hasBottom) return `${prefix} ↔`;
+  // Mixed (e.g. T+L only) — keep the first label as-is, plus a hint marker.
+  const arr: string[] = [];
+  if (hasTop) arr.push('↑');
+  if (hasRight) arr.push('→');
+  if (hasBottom) arr.push('↓');
+  if (hasLeft) arr.push('←');
+  return `${prefix} ${arr.join('')}`;
+}
+
+function recomputeGapRect(gap: GapTarget): GapTarget | null {
+  if (!document.contains(gap.parent)) return null;
+  // Sweep along the gap's main axis to find a seed point that lands inside
+  // the NEW rect — the post-swap rect can be a small subset of the original,
+  // and a single center point may fall outside it.
+  const tryAt = (x: number, y: number) =>
+    findGapInChildren(gap.parent, x, y) ??
+    findTrailingGapV(gap.parent, x, y) ??
+    findLeadingGapV(gap.parent, x, y);
+
+  if (gap.axis === 'vertical') {
+    const cx = (gap.rect.left + gap.rect.right) / 2;
+    const step = 2;
+    for (let y = gap.rect.top + 1; y < gap.rect.bottom; y += step) {
+      const found = tryAt(cx, y);
+      if (found) return found;
+    }
+  } else {
+    const cy = (gap.rect.top + gap.rect.bottom) / 2;
+    const step = 2;
+    for (let x = gap.rect.left + 1; x < gap.rect.right; x += step) {
+      const found = tryAt(x, cy);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+function placeGapOverlay(gap: GapTarget): void {
+  const box = ensureOverlay();
+  Object.assign(box.style, {
+    left: `${gap.rect.left}px`,
+    top: `${gap.rect.top}px`,
+    width: `${gap.rect.right - gap.rect.left}px`,
+    height: `${gap.rect.bottom - gap.rect.top}px`,
+    background: `color-mix(in oklch, ${ACCENT} 18%, transparent)`,
+    border: `1px dashed ${ACCENT}`,
+    borderRadius: '0px',
   });
 }
 
@@ -270,16 +789,15 @@ function ensureEditStyles(): void {
     }
     #${PANEL_ID} {
       position: fixed;
-      left: 12px;
-      right: 12px;
-      bottom: 12px;
+      left: 0;
+      right: 0;
+      bottom: 0;
       max-height: 60vh;
       overflow: auto;
       background: ${SURFACE};
       color: ${INK_1};
-      border: 1px solid ${BORDER};
-      border-radius: 12px;
-      box-shadow: 0 -8px 32px -8px rgba(0,0,0,.45), 0 1px 0 ${BORDER};
+      border-top: 1px solid ${BORDER};
+      box-shadow: 0 -8px 32px -8px rgba(0,0,0,.45);
       padding: 16px 20px;
       z-index: 2147483647;
       font-size: 13px;
@@ -319,7 +837,7 @@ function ensureEditStyles(): void {
     #${PANEL_ID} .card {
       flex: 1 1 0;
       min-width: 0;
-      padding: 0 22px;
+      padding: 0 14px;
       border-left: 1px solid ${BORDER_SOFT};
     }
     #${PANEL_ID} .card:first-child { padding-left: 0; border-left: 0; }
@@ -492,9 +1010,9 @@ function ensureEditStyles(): void {
     #${PANEL_ID} .color-prop:last-child { margin-bottom: 0; }
     #${PANEL_ID} .crow {
       display: grid;
-      grid-template-columns: 20px 50px 100px 1fr;
+      grid-template-columns: 20px 1fr minmax(120px, 1.4fr);
       align-items: center;
-      gap: 10px;
+      gap: 8px;
       min-height: 36px;
     }
     #${PANEL_ID} .color-swatch {
@@ -539,13 +1057,49 @@ function ensureEditStyles(): void {
     #${PANEL_ID} .swatch-mini:focus-visible {
       box-shadow: 0 0 0 2px ${SURFACE}, 0 0 0 4px ${ACCENT};
     }
+
+    /* Property popover (anchored under the selected element) */
+    #${POPOVER_ID} {
+      position: fixed;
+      z-index: 2147483646;
+      background: ${SURFACE};
+      color: ${INK_1};
+      border: 1px solid ${BORDER};
+      border-radius: 8px;
+      box-shadow: 0 10px 32px -8px rgba(0,0,0,.55);
+      padding: 4px;
+      font-family: ui-monospace, "SF Mono", "JetBrains Mono", monospace;
+      font-size: 12px;
+      min-width: 220px;
+      max-width: 340px;
+    }
+    #${POPOVER_ID} .pp-row {
+      display: grid;
+      grid-template-columns: 64px 1fr auto;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 10px;
+      border-radius: 5px;
+      cursor: pointer;
+      user-select: none;
+    }
+    #${POPOVER_ID} .pp-row:hover { background: ${SURFACE_2}; }
+    #${POPOVER_ID} .pp-row.is-focused {
+      background: ${SURFACE_2};
+      box-shadow: inset 0 0 0 1px ${ACCENT};
+    }
+    #${POPOVER_ID} .pp-label { color: ${INK_3}; font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; }
+    #${POPOVER_ID} .pp-value { color: ${INK_1}; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #${POPOVER_ID} .pp-token { color: ${INK_3}; font-size: 11px; }
+    #${POPOVER_ID} .pp-row.is-focused .pp-token { color: ${ACCENT}; }
   `;
   document.head.appendChild(style);
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 const TYPO_HINTS: PropKind[] = ['fontSize', 'fontWeight', 'lineHeight', 'letterSpacing'];
-const SURFACE_HINTS: PropKind[] = ['radius', 'shadow', 'opacity', 'duration'];
+const BORDER_HINTS: PropKind[] = ['borderWidth', 'radius'];
+const EFFECT_HINTS: PropKind[] = ['shadow', 'opacity', 'duration'];
 
 const SHORT_LABEL: Record<string, string> = {
   'font-size': 'Size',
@@ -553,9 +1107,13 @@ const SHORT_LABEL: Record<string, string> = {
   'line-height': 'Line',
   'letter-spacing': 'Tracking',
   color: 'Text',
-  'background-color': 'Background',
+  'background-color': 'Bg',
+  'border-color': 'Border',
   'border-radius': 'Radius',
+  'border-width': 'Width',
   'box-shadow': 'Shadow',
+  opacity: 'Opacity',
+  'transition-duration': 'Duration',
   gap: 'Gap',
 };
 
@@ -922,9 +1480,9 @@ function buildColorBlock(prop: PropEntry): HTMLElement {
   colorInput.value = parseHex(prop.value) ?? '#000000';
   swatch.appendChild(colorInput);
   row.appendChild(swatch);
-  row.appendChild(createEl('span', 'crow-label', shortLabel(prop.prop)));
-  const value = createEl('span', 'crow-value', prop.value);
-  row.appendChild(value);
+  const label = createEl('span', 'crow-label', shortLabel(prop.prop));
+  label.title = prop.value;
+  row.appendChild(label);
 
   const stepper = createEl('div', 'stepper');
   const name = createEl('button', 'stepper-name');
@@ -968,7 +1526,7 @@ function buildColorBlock(prop: PropEntry): HTMLElement {
     state.index = idx;
     const target = state.candidates[idx]!;
     const nextValue = valueAsString(target.value);
-    value.textContent = nextValue;
+    label.title = nextValue;
     swatch.style.background = nextValue;
     colorInput.value = parseHex(nextValue) ?? colorInput.value;
     refresh();
@@ -985,7 +1543,7 @@ function buildColorBlock(prop: PropEntry): HTMLElement {
 
   colorInput.addEventListener('input', () => {
     swatch.style.background = colorInput.value;
-    value.textContent = colorInput.value;
+    label.title = colorInput.value;
     swatchRefs.forEach((s) => s.classList.remove('is-current'));
     if (prop.tokens.length) emitTokenUpdate(prop.tokens[0]!.path, colorInput.value);
   });
@@ -1122,10 +1680,18 @@ function buildColorCard(props: PropEntry[]): HTMLElement {
   return card;
 }
 
-function buildSurfaceCard(props: PropEntry[]): HTMLElement {
-  if (!props.length) return buildCard('Surface', null, true);
+function buildBorderCard(props: PropEntry[]): HTMLElement {
+  if (!props.length) return buildCard('Border', null, true);
   const card = createEl('section', 'card');
-  card.appendChild(createEl('div', 'card-label', 'Surface'));
+  card.appendChild(createEl('div', 'card-label', 'Border'));
+  for (const p of props) card.appendChild(buildPropertyBlock(p));
+  return card;
+}
+
+function buildEffectsCard(props: PropEntry[]): HTMLElement {
+  if (!props.length) return buildCard('Effects', null, true);
+  const card = createEl('section', 'card');
+  card.appendChild(createEl('div', 'card-label', 'Effects'));
   for (const p of props) card.appendChild(buildPropertyBlock(p));
   return card;
 }
@@ -1160,24 +1726,171 @@ function buildEditPanel(el: Element, props: PropEntry[]): HTMLElement {
 
   panel.appendChild(createEl('div', 'divider'));
 
-  // Strip — four cards always rendered (with "—" empty state for missing categories)
+  // Strip — five cards always rendered (with "—" empty state for missing categories)
   const strip = createEl('div', 'strip');
 
   const typoProps = props.filter((p) => TYPO_HINTS.includes(p.hint));
   const spacingProps = props.filter((p) => p.hint === 'spacing');
   const colorProps = props.filter((p) => p.hint === 'color');
-  const surfaceProps = props.filter((p) => SURFACE_HINTS.includes(p.hint));
+  const borderProps = props.filter((p) => BORDER_HINTS.includes(p.hint));
+  const effectsProps = props.filter((p) => EFFECT_HINTS.includes(p.hint));
   const gapProp = spacingProps.find((p) => p.prop === 'gap');
   const sideSpacing = spacingProps.filter((p) => p.prop !== 'gap');
 
   strip.appendChild(buildTypographyCard(typoProps));
-  strip.appendChild(buildSpacingCard(sideSpacing, gapProp));
   strip.appendChild(buildColorCard(colorProps));
-  strip.appendChild(buildSurfaceCard(surfaceProps));
+  strip.appendChild(buildSpacingCard(sideSpacing, gapProp));
+  strip.appendChild(buildBorderCard(borderProps));
+  strip.appendChild(buildEffectsCard(effectsProps));
 
   panel.appendChild(strip);
 
   return panel;
+}
+
+function buildGapEditPanel(gap: GapTarget): HTMLElement {
+  const panel = createEl('div');
+  panel.id = PANEL_ID;
+
+  // Header
+  const hdr = createEl('div', 'hdr');
+  const title = createEl('div');
+  const axisGlyph = gap.axis === 'vertical' ? '↕' : '↔';
+  title.appendChild(createEl('div', 'hdr-tag', `${axisGlyph} gap`));
+  const sourceLabel = gap.source.kind === 'parentGap' ? 'parent gap' : gap.source.prop;
+  title.appendChild(createEl('div', 'hdr-sub', `${gap.source.value} · ${sourceLabel}`));
+  const close = createEl('button', 'hdr-close', '✕');
+  close.type = 'button';
+  close.setAttribute('aria-label', 'Close edit panel');
+  close.addEventListener('click', removeEditPanel);
+  hdr.appendChild(title);
+  hdr.appendChild(close);
+  panel.appendChild(hdr);
+  attachDrag(panel, hdr);
+  panel.appendChild(createEl('div', 'divider'));
+
+  const strip = createEl('div', 'strip');
+  strip.appendChild(buildCard('Typography', null, true));
+  strip.appendChild(buildCard('Color', null, true));
+  strip.appendChild(buildGapSpacingCard(gap));
+  strip.appendChild(buildCard('Border', null, true));
+  strip.appendChild(buildCard('Effects', null, true));
+
+  panel.appendChild(strip);
+  return panel;
+}
+
+function buildGapSpacingCard(gap: GapTarget): HTMLElement {
+  const card = createEl('section', 'card');
+  card.appendChild(createEl('div', 'card-label', 'Spacing'));
+
+  const utility = findUtilityForProp(gap.source.el, gap.source.prop);
+  const loc = readSourceLoc(gap.source.el);
+
+  if (!utility || !loc) {
+    const reason = !utility
+      ? `No Tailwind utility found on element for ${gap.source.prop}`
+      : 'No data-loc on element (Vite plugin not active?)';
+    const empty = createEl('div', 'card-empty', reason);
+    card.appendChild(empty);
+    return card;
+  }
+
+  // Single property block: shows current utility, stepper cycles spacing scale.
+  const block = createEl('div', 'prop-block');
+  const row = createEl('div', 'prow');
+  row.appendChild(createEl('span', 'prow-label', 'Class'));
+  const valueEl = createEl('span', 'prow-value', utility.full);
+  row.appendChild(valueEl);
+
+  const stepper = createEl('div', 'stepper');
+  const name = createEl('button', 'stepper-name');
+  name.type = 'button';
+  name.textContent = `spacing.${utility.scale}`;
+  const arrows = createEl('div', 'stepper-arrows');
+  const prev = createEl('button', 'stepper-arr stepper-arr-prev');
+  prev.type = 'button';
+  prev.innerHTML = CHEVRON_LEFT;
+  prev.setAttribute('aria-label', 'Previous spacing');
+  const next = createEl('button', 'stepper-arr stepper-arr-next');
+  next.type = 'button';
+  next.innerHTML = CHEVRON_RIGHT;
+  next.setAttribute('aria-label', 'Next spacing');
+  arrows.appendChild(prev);
+  arrows.appendChild(next);
+  stepper.appendChild(name);
+  stepper.appendChild(arrows);
+  row.appendChild(stepper);
+  block.appendChild(row);
+  card.appendChild(block);
+
+  const scale = spacingTokensSorted();
+  if (scale.length === 0) {
+    prev.disabled = true;
+    next.disabled = true;
+    return card;
+  }
+  // Current index in the spacing scale (matches by path[1] = scale key).
+  let index = scale.findIndex((t) => t.path[1] === utility.scale);
+  // If current utility isn't on the scale, start at -1; first step lands on 0.
+
+  function refresh() {
+    prev.disabled = index <= 0;
+    next.disabled = index >= scale.length - 1;
+    if (index >= 0) {
+      const t = scale[index]!;
+      name.textContent = `spacing.${t.path[1]}`;
+    }
+  }
+  refresh();
+
+  let currentClass = utility.full;
+
+  function applyIndex(nextIdx: number) {
+    if (nextIdx < 0 || nextIdx >= scale.length) return;
+    if (nextIdx === index) return;
+    const target = scale[nextIdx]!;
+    const newClass = `${utility!.prefix}${target.path[1]}`;
+    // Optimistic swap on the live DOM so spacing updates immediately, before
+    // the server-side file write + Vite HMR catches up.
+    gap.source.el.classList.remove(currentClass);
+    gap.source.el.classList.add(newClass);
+    if (activeWs && activeWs.readyState === activeWs.OPEN) {
+      activeWs.send(
+        JSON.stringify({
+          type: 'swap-utility',
+          file: loc!.file,
+          line: loc!.line,
+          col: loc!.col,
+          oldClass: currentClass,
+          newClass,
+        }),
+      );
+    }
+    currentClass = newClass;
+    valueEl.textContent = newClass;
+    index = nextIdx;
+    refresh();
+    // Re-measure the gap rect so the overlay tracks the new spacing.
+    requestAnimationFrame(() => {
+      if (!selectedGap) return;
+      const fresh = recomputeGapRect(selectedGap);
+      if (fresh) {
+        selectedGap = fresh;
+        hoverGap = fresh;
+        placeGapOverlay(fresh);
+      }
+    });
+  }
+
+  prev.addEventListener('click', () => applyIndex(index - 1));
+  next.addEventListener('click', () => applyIndex(index + 1));
+
+  // Expose for the keyboard handler. The card will be torn down when the
+  // panel closes; we clear the ref in removeEditPanel.
+  activeStepperRef = { step: (delta: number) => applyIndex(index + delta) };
+
+  return card;
 }
 
 // ── Drag ──────────────────────────────────────────────────────────────────
@@ -1276,10 +1989,13 @@ function showEditPanel(el: Element): void {
   releaseBottomSpace();
   editPanel?.remove();
   editPanel = null;
+  removePropertyPopover();
 
   ensureEditStyles();
   hoverEl = el;
   selectedEl = el;
+  selectedGap = null;
+  hoverGap = null;
   placeOverlay(el);
 
   const props = inspectElement(el);
@@ -1290,6 +2006,150 @@ function showEditPanel(el: Element): void {
   // padding-bottom is grown to match, so the user can still scroll the
   // entire app while editing.
   reserveBottomSpace(panel);
+
+  // Plus the contextual popover under the element for keyboard editing.
+  showPropertyPopover(el);
+}
+
+// ── Property popover ─────────────────────────────────────────────────────
+function removePropertyPopover(): void {
+  propertyPopover?.remove();
+  propertyPopover = null;
+  // If the active stepper was driven by the popover, clear it.
+  // (The gap card sets its own and is responsible for clearing it on close.)
+  if (!selectedGap) activeStepperRef = null;
+  // Restore the selection outline (it may have been hidden by focusRow).
+  const overlay = document.getElementById(OVERLAY_ID);
+  if (overlay) overlay.style.opacity = '1';
+}
+
+function showPropertyPopover(el: Element): void {
+  removePropertyPopover();
+  const matches = findCategoryMatches(el);
+  if (matches.length === 0) return;
+  const loc = readSourceLoc(el);
+  if (!loc) return; // Without source loc we can't swap.
+
+  const pop = createEl('div');
+  pop.id = POPOVER_ID;
+
+  type RowState = {
+    row: HTMLElement;
+    valueEl: HTMLElement;
+    tokenEl: HTMLElement;
+    match: CategoryMatch;
+    currentClass: string;
+    index: number;
+  };
+  const states: RowState[] = [];
+  let focusedIdx = -1;
+
+  function focusRow(i: number) {
+    focusedIdx = i;
+    states.forEach((s, idx) => s.row.classList.toggle('is-focused', idx === i));
+    activeStepperRef = i >= 0 ? { step: (delta) => stepRow(states[i]!, delta) } : null;
+    // Hide the selection outline while a row is focused so the user can see
+    // the live edit clearly. Restore when no row is focused.
+    const overlay = document.getElementById(OVERLAY_ID);
+    if (overlay) overlay.style.opacity = i >= 0 ? '0' : '1';
+  }
+
+  function stepRow(s: RowState, delta: number) {
+    let nextIdx: number;
+    if (s.index < 0) {
+      // Current utility is unmapped (e.g., `px-5` with no spacing.5 token).
+      // First step lands on the lowest (↑) or highest (↓) token in scale.
+      nextIdx = delta > 0 ? 0 : s.match.scale.length - 1;
+    } else {
+      nextIdx = s.index + delta;
+      if (nextIdx < 0 || nextIdx >= s.match.scale.length) return;
+    }
+    const target = s.match.scale[nextIdx]!;
+    const newScaleKey = String(target.path.at(-1));
+    const newClass = `${s.match.utility.prefix}${newScaleKey}`;
+    el.classList.remove(s.currentClass);
+    el.classList.add(newClass);
+    if (activeWs && activeWs.readyState === activeWs.OPEN) {
+      activeWs.send(
+        JSON.stringify({
+          type: 'swap-utility',
+          file: loc!.file,
+          line: loc!.line,
+          col: loc!.col,
+          oldClass: s.currentClass,
+          newClass,
+        }),
+      );
+    }
+    s.currentClass = newClass;
+    s.index = nextIdx;
+    s.valueEl.textContent = newClass;
+    s.tokenEl.textContent = newScaleKey;
+    // Re-anchor in case the element's bbox moved.
+    requestAnimationFrame(() => positionPopover(pop, el));
+  }
+
+  for (const m of matches) {
+    const row = createEl('div', 'pp-row');
+    row.appendChild(createEl('span', 'pp-label', m.cat.label));
+    const valueEl = createEl('span', 'pp-value', m.utility.full);
+    row.appendChild(valueEl);
+    const tokenEl = createEl('span', 'pp-token', m.utility.scale);
+    row.appendChild(tokenEl);
+    const state: RowState = {
+      row,
+      valueEl,
+      tokenEl,
+      match: m,
+      currentClass: m.utility.full,
+      index: m.scaleIndex >= 0 ? m.scaleIndex : 0,
+    };
+    states.push(state);
+    row.addEventListener('click', (e) => {
+      e.stopPropagation();
+      focusRow(states.indexOf(state));
+    });
+    pop.appendChild(row);
+  }
+
+  document.body.appendChild(pop);
+  propertyPopover = pop;
+  positionPopover(pop, el);
+}
+
+function positionPopover(pop: HTMLElement, el: Element): void {
+  const r = el.getBoundingClientRect();
+  const pr = pop.getBoundingClientRect();
+  let top = r.bottom + 6;
+  let left = r.left;
+  if (top + pr.height > window.innerHeight - 8) {
+    // Try anchoring above; if still doesn't fit, clamp inside viewport.
+    top = r.top - pr.height - 6;
+    if (top < 8) top = Math.max(8, window.innerHeight - pr.height - 8);
+  }
+  if (left + pr.width > window.innerWidth - 8) left = window.innerWidth - pr.width - 8;
+  if (left < 8) left = 8;
+  pop.style.top = `${top}px`;
+  pop.style.left = `${left}px`;
+}
+
+function showEditPanelForGap(gap: GapTarget): void {
+  closeDropdown();
+  releaseBottomSpace();
+  editPanel?.remove();
+  editPanel = null;
+
+  ensureEditStyles();
+  selectedGap = gap;
+  selectedEl = null;
+  hoverGap = gap;
+  hoverEl = null;
+  placeGapOverlay(gap);
+
+  const panel = buildGapEditPanel(gap);
+  document.body.appendChild(panel);
+  editPanel = panel;
+  reserveBottomSpace(panel);
 }
 
 function removeEditPanel(): void {
@@ -1297,8 +2157,12 @@ function removeEditPanel(): void {
   releaseBottomSpace();
   editPanel?.remove();
   editPanel = null;
+  removePropertyPopover();
   selectedEl = null;
+  selectedGap = null;
   hoverEl = null;
+  hoverGap = null;
+  activeStepperRef = null;
   removeOverlay();
 }
 
@@ -1312,6 +2176,8 @@ function setInspectMode(enabled: boolean): void {
     document.body.style.cursor = '';
     hoverEl = null;
     selectedEl = null;
+    hoverGap = null;
+    selectedGap = null;
     removeOverlay();
     removeEditPanel();
   }
@@ -1322,7 +2188,8 @@ function isAgentNode(el: Element | null): boolean {
   let cur: Element | null = el;
   while (cur) {
     const id = cur.id;
-    if (id === OVERLAY_ID || id === PANEL_ID || id === DROPDOWN_ID) return true;
+    if (id === OVERLAY_ID || id === PANEL_ID || id === DROPDOWN_ID || id === POPOVER_ID)
+      return true;
     cur = cur.parentElement;
   }
   return false;
@@ -1331,16 +2198,38 @@ function isAgentNode(el: Element | null): boolean {
 function onMouseMove(e: MouseEvent): void {
   if (!inspectMode) return;
   const target = e.target as Element | null;
-  // Cursor on our own UI: keep the overlay anchored on the selected element.
+  // Cursor on our own UI: keep the overlay anchored on the current selection.
   if (!target || isAgentNode(target)) {
-    if (selectedEl && hoverEl !== selectedEl) {
+    if (selectedGap) {
+      if (!hoverGap || !sameGap(hoverGap, selectedGap)) {
+        hoverGap = selectedGap;
+        hoverEl = null;
+        placeGapOverlay(selectedGap);
+      }
+    } else if (selectedEl && hoverEl !== selectedEl) {
       hoverEl = selectedEl;
+      hoverGap = null;
       placeOverlay(selectedEl);
     }
     return;
   }
-  if (target === hoverEl) return;
+  // Gap detection takes precedence when the cursor is in empty space:
+  //   1. between two siblings of `target` (inter-children gap)
+  //   2. in `target`'s top or bottom padding (leading/trailing gap)
+  const gap =
+    findGapInChildren(target, e.clientX, e.clientY) ??
+    findTrailingGapV(target, e.clientX, e.clientY) ??
+    findLeadingGapV(target, e.clientX, e.clientY);
+  if (gap) {
+    if (hoverGap && sameGap(hoverGap, gap)) return;
+    hoverGap = gap;
+    hoverEl = null;
+    placeGapOverlay(gap);
+    return;
+  }
+  if (target === hoverEl && !hoverGap) return;
   hoverEl = target;
+  hoverGap = null;
   placeOverlay(target);
 }
 
@@ -1350,7 +2239,11 @@ function onClick(e: MouseEvent): void {
   if (!target || isAgentNode(target)) return;
   e.preventDefault();
   e.stopPropagation();
-  showEditPanel(target);
+  if (hoverGap) {
+    showEditPanelForGap(hoverGap);
+  } else {
+    showEditPanel(target);
+  }
 }
 
 function onKeyDown(e: KeyboardEvent): void {
@@ -1363,6 +2256,16 @@ function onKeyDown(e: KeyboardEvent): void {
         activeWs.send(JSON.stringify({ type: 'inspect-mode', enabled: false }));
       }
     }
+    return;
+  }
+  // Arrow keys cycle the gap stepper while a gap is selected. Skip when a
+  // form control is focused so typing in inputs still works.
+  if (activeStepperRef && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+    const t = e.target as Element | null;
+    const tag = t?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    e.preventDefault();
+    activeStepperRef.step(e.key === 'ArrowUp' ? 1 : -1);
   }
 }
 

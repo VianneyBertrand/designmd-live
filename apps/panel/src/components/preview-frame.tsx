@@ -16,8 +16,11 @@ export function PreviewFrame() {
     fetchConfig().then((cfg) => {
       if (cancelled) return;
       if (cfg?.proxy) {
-        // The proxy is at the panel host root.
-        const origin = window.location.origin;
+        // The proxy is at the CLI server root. In Vite dev the panel runs on
+        // :5173, but the proxy lives on :3030 — use that instead of the panel
+        // origin (otherwise the iframe loops back into the panel itself).
+        const host = window.location.port === '5173' ? 'localhost:3030' : window.location.host;
+        const origin = `${window.location.protocol}//${host}`;
         const next = origin + cfg.proxy.path;
         setProxyMode(true);
         setProxyUrl(next);
