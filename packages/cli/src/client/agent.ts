@@ -40,6 +40,7 @@ const PANEL_ID = 'designmd-live-edit-panel';
 const STYLES_ID = 'designmd-live-edit-styles';
 const DROPDOWN_ID = 'designmd-live-dropdown';
 const POPOVER_ID = 'designmd-live-popover';
+const GAP_LABEL_ID = 'designmd-live-gap-label';
 
 const CHEVRON_LEFT = '<svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 14L8 10L12 6"/></svg>';
 const CHEVRON_RIGHT = '<svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6L12 10L8 14"/></svg>';
@@ -70,6 +71,10 @@ let editPanel: HTMLElement | null = null;
 // so the global keydown handler doesn't have to know which UI is driving it.
 let activeStepperRef: { step: (delta: number) => void } | null = null;
 let propertyPopover: HTMLElement | null = null;
+// Tracks the element/parent of the current gap selection so the overlay can
+// re-measure as Tailwind v4 JIT + Vite HMR finalize the new utility's CSS.
+let gapResizeObserver: ResizeObserver | null = null;
+let gapResizeRefresh: (() => void) | null = null;
 let activeWs: WebSocket | null = null;
 let retry = 0;
 
@@ -763,17 +768,103 @@ function recomputeGapRect(gap: GapTarget): GapTarget | null {
   return null;
 }
 
+// Visual treatment depends on the gap source:
+//   - parentGap / margin → orange dashed (between two siblings)
+//   - padding            → blue solid (inside a container's padding zone)
+const PADDING_COLOR = 'oklch(0.72 0.15 240)';
+
 function placeGapOverlay(gap: GapTarget): void {
   const box = ensureOverlay();
+  const isPadding = gap.source.kind === 'padding';
+  if (isPadding) {
+    placePaddingStrips(box, gap.source.el);
+    return;
+  }
   Object.assign(box.style, {
     left: `${gap.rect.left}px`,
     top: `${gap.rect.top}px`,
     width: `${gap.rect.right - gap.rect.left}px`,
     height: `${gap.rect.bottom - gap.rect.top}px`,
-    background: `color-mix(in oklch, ${ACCENT} 18%, transparent)`,
+    background: `color-mix(in oklch, ${ACCENT} 16%, transparent)`,
     border: `1px dashed ${ACCENT}`,
     borderRadius: '0px',
+    boxSizing: 'border-box',
+    boxShadow: 'none',
   });
+}
+
+// Visualize the four padding zones the same way Chrome DevTools does: use
+// the overlay's borders (one per side) at exactly the padding's pixel width,
+// filled with a translucent color. Sides with zero padding render no border.
+function placePaddingStrips(box: HTMLElement, el: Element): void {
+  const r = el.getBoundingClientRect();
+  const cs = getComputedStyle(el);
+  const pt = Math.max(0, parseFloat(cs.paddingTop) || 0);
+  const pr = Math.max(0, parseFloat(cs.paddingRight) || 0);
+  const pb = Math.max(0, parseFloat(cs.paddingBottom) || 0);
+  const pl = Math.max(0, parseFloat(cs.paddingLeft) || 0);
+  const fill = `color-mix(in oklch, ${PADDING_COLOR} 32%, transparent)`;
+  Object.assign(box.style, {
+    left: `${r.left}px`,
+    top: `${r.top}px`,
+    width: `${r.width}px`,
+    height: `${r.height}px`,
+    background: 'transparent',
+    border: 'none',
+    borderTop: pt > 0 ? `${pt}px solid ${fill}` : '0',
+    borderRight: pr > 0 ? `${pr}px solid ${fill}` : '0',
+    borderBottom: pb > 0 ? `${pb}px solid ${fill}` : '0',
+    borderLeft: pl > 0 ? `${pl}px solid ${fill}` : '0',
+    borderRadius: '0px',
+    boxSizing: 'border-box',
+    // Thin outer outline so the element bounds remain readable.
+    boxShadow: `inset 0 0 0 1px ${PADDING_COLOR}`,
+  });
+}
+
+function ensureGapLabel(): HTMLElement {
+  let el = document.getElementById(GAP_LABEL_ID) as HTMLElement | null;
+  if (!el) {
+    el = document.createElement('div');
+    el.id = GAP_LABEL_ID;
+    Object.assign(el.style, {
+      position: 'fixed',
+      pointerEvents: 'none',
+      zIndex: '2147483646',
+      background: SURFACE,
+      color: INK_1,
+      border: `1px solid ${BORDER}`,
+      borderRadius: '5px',
+      padding: '3px 7px',
+      fontFamily: 'ui-monospace, "SF Mono", "JetBrains Mono", monospace',
+      fontSize: '11px',
+      whiteSpace: 'nowrap',
+      boxShadow: '0 4px 12px -4px rgba(0,0,0,.5)',
+    } as CSSStyleDeclaration);
+    document.body.appendChild(el);
+  }
+  return el;
+}
+
+function placeGapLabel(gap: GapTarget, text: string): void {
+  const el = ensureGapLabel();
+  el.textContent = text;
+  // Position just to the left of the rect, vertically centered.
+  // First commit text + measure so we know the width.
+  el.style.left = '-9999px';
+  el.style.top = '0px';
+  const lr = el.getBoundingClientRect();
+  const cy = (gap.rect.top + gap.rect.bottom) / 2;
+  let left = gap.rect.left - lr.width - 8;
+  if (left < 4) left = gap.rect.right + 8; // not enough room left → anchor right
+  if (left + lr.width > window.innerWidth - 4) left = window.innerWidth - lr.width - 4;
+  const top = Math.max(4, Math.min(window.innerHeight - lr.height - 4, cy - lr.height / 2));
+  el.style.left = `${left}px`;
+  el.style.top = `${top}px`;
+}
+
+function removeGapLabel(): void {
+  document.getElementById(GAP_LABEL_ID)?.remove();
 }
 
 // ── Edit panel styles ──────────────────────────────────────────────────────
@@ -1983,8 +2074,6 @@ function releaseBottomSpace(): void {
 }
 
 function showEditPanel(el: Element): void {
-  // Tear down the old panel but keep the overlay so the visual
-  // continuity (selection outline + tag label) is preserved.
   closeDropdown();
   releaseBottomSpace();
   editPanel?.remove();
@@ -1998,16 +2087,8 @@ function showEditPanel(el: Element): void {
   hoverGap = null;
   placeOverlay(el);
 
-  const props = inspectElement(el);
-  const panel = buildEditPanel(el, props);
-  document.body.appendChild(panel);
-  editPanel = panel;
-  // DevTools-style: the panel is fixed at the bottom AND the body's
-  // padding-bottom is grown to match, so the user can still scroll the
-  // entire app while editing.
-  reserveBottomSpace(panel);
-
-  // Plus the contextual popover under the element for keyboard editing.
+  // Element editing now lives entirely in the contextual popover; the
+  // bottom panel is suppressed for elements (still used for gaps for now).
   showPropertyPopover(el);
 }
 
@@ -2138,18 +2219,113 @@ function showEditPanelForGap(gap: GapTarget): void {
   releaseBottomSpace();
   editPanel?.remove();
   editPanel = null;
+  removePropertyPopover();
 
-  ensureEditStyles();
   selectedGap = gap;
   selectedEl = null;
   hoverGap = gap;
   hoverEl = null;
   placeGapOverlay(gap);
 
-  const panel = buildGapEditPanel(gap);
-  document.body.appendChild(panel);
-  editPanel = panel;
-  reserveBottomSpace(panel);
+  // No bottom panel for gaps anymore — selection overlay + keyboard arrows.
+  setupGapStepper(gap);
+}
+
+function setupGapStepper(gap: GapTarget): void {
+  const utility = findUtilityForProp(gap.source.el, gap.source.prop);
+  const loc = readSourceLoc(gap.source.el);
+  if (!utility || !loc) {
+    activeStepperRef = null;
+    removeGapLabel();
+    detachGapResizeObserver();
+    return;
+  }
+  const scale = spacingTokensSorted();
+  if (scale.length === 0) {
+    activeStepperRef = null;
+    removeGapLabel();
+    detachGapResizeObserver();
+    return;
+  }
+  let index = scale.findIndex((t) => t.path[1] === utility.scale);
+  let currentClass = utility.full;
+
+  // Show the utility class (e.g. `pb-6`, `mt-4`, `gap-3`) rather than the
+  // abstract token path — it tells the user immediately what's being
+  // edited (padding vs margin vs gap).
+  const labelText = () => currentClass;
+  placeGapLabel(gap, labelText());
+
+  // Re-measure whenever the source element or its parent changes size —
+  // covers Tailwind v4 JIT + Vite HMR latency where the class is on the
+  // element before the matching CSS arrives.
+  const refresh = () => {
+    if (!selectedGap) return;
+    const fresh = recomputeGapRect(selectedGap);
+    if (fresh) {
+      // If detection picked a different source/parent, re-attach the
+      // observer onto the new element.
+      if (fresh.source.el !== selectedGap.source.el || fresh.parent !== selectedGap.parent) {
+        attachGapResizeObserver(fresh, refresh);
+      }
+      selectedGap = fresh;
+      hoverGap = fresh;
+      placeGapOverlay(fresh);
+      placeGapLabel(fresh, labelText());
+    }
+  };
+  gapResizeRefresh = refresh;
+  attachGapResizeObserver(gap, refresh);
+
+  function step(delta: number) {
+    let nextIdx: number;
+    if (index < 0) {
+      nextIdx = delta > 0 ? 0 : scale.length - 1;
+    } else {
+      nextIdx = index + delta;
+      if (nextIdx < 0 || nextIdx >= scale.length) return;
+    }
+    const target = scale[nextIdx]!;
+    const newClass = `${utility!.prefix}${target.path[1]}`;
+    gap.source.el.classList.remove(currentClass);
+    gap.source.el.classList.add(newClass);
+    if (activeWs && activeWs.readyState === activeWs.OPEN) {
+      activeWs.send(
+        JSON.stringify({
+          type: 'swap-utility',
+          file: loc!.file,
+          line: loc!.line,
+          col: loc!.col,
+          oldClass: currentClass,
+          newClass,
+        }),
+      );
+    }
+    currentClass = newClass;
+    index = nextIdx;
+    // Update the label immediately; ResizeObserver + scheduled refreshes
+    // catch the overlay up once Tailwind JIT + Vite HMR settle the CSS.
+    placeGapLabel(selectedGap ?? gap, labelText());
+    requestAnimationFrame(refresh);
+    setTimeout(refresh, 100);
+    setTimeout(refresh, 300);
+  }
+
+  activeStepperRef = { step };
+}
+
+function attachGapResizeObserver(gap: GapTarget, onResize: () => void): void {
+  detachGapResizeObserver();
+  if (typeof ResizeObserver === 'undefined') return;
+  gapResizeObserver = new ResizeObserver(() => onResize());
+  gapResizeObserver.observe(gap.source.el);
+  if (gap.parent !== gap.source.el) gapResizeObserver.observe(gap.parent);
+}
+
+function detachGapResizeObserver(): void {
+  gapResizeObserver?.disconnect();
+  gapResizeObserver = null;
+  gapResizeRefresh = null;
 }
 
 function removeEditPanel(): void {
@@ -2158,6 +2334,8 @@ function removeEditPanel(): void {
   editPanel?.remove();
   editPanel = null;
   removePropertyPopover();
+  removeGapLabel();
+  detachGapResizeObserver();
   selectedEl = null;
   selectedGap = null;
   hoverEl = null;
@@ -2179,6 +2357,7 @@ function setInspectMode(enabled: boolean): void {
     hoverGap = null;
     selectedGap = null;
     removeOverlay();
+    removeGapLabel();
     removeEditPanel();
   }
 }
@@ -2188,7 +2367,13 @@ function isAgentNode(el: Element | null): boolean {
   let cur: Element | null = el;
   while (cur) {
     const id = cur.id;
-    if (id === OVERLAY_ID || id === PANEL_ID || id === DROPDOWN_ID || id === POPOVER_ID)
+    if (
+      id === OVERLAY_ID ||
+      id === PANEL_ID ||
+      id === DROPDOWN_ID ||
+      id === POPOVER_ID ||
+      id === GAP_LABEL_ID
+    )
       return true;
     cur = cur.parentElement;
   }
