@@ -35,17 +35,21 @@ interface BrokerMessage {
 const WS_PATH = '/ws';
 const STYLE_ID = 'designmd-live-overrides';
 const OVERLAY_ID = 'designmd-live-overlay';
-const LABEL_ID = 'designmd-live-label';
+const _LABEL_ID = 'designmd-live-label';
 const PANEL_ID = 'designmd-live-edit-panel';
 const STYLES_ID = 'designmd-live-edit-styles';
 const DROPDOWN_ID = 'designmd-live-dropdown';
 const POPOVER_ID = 'designmd-live-popover';
 const GAP_LABEL_ID = 'designmd-live-gap-label';
 
-const CHEVRON_LEFT = '<svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 14L8 10L12 6"/></svg>';
-const CHEVRON_RIGHT = '<svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6L12 10L8 14"/></svg>';
-const CHEVRON_LEFT_SM = '<svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 14L8 10L12 6"/></svg>';
-const CHEVRON_RIGHT_SM = '<svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6L12 10L8 14"/></svg>';
+const CHEVRON_LEFT =
+  '<svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 14L8 10L12 6"/></svg>';
+const CHEVRON_RIGHT =
+  '<svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6L12 10L8 14"/></svg>';
+const CHEVRON_LEFT_SM =
+  '<svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 14L8 10L12 6"/></svg>';
+const CHEVRON_RIGHT_SM =
+  '<svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6L12 10L8 14"/></svg>';
 
 const ACCENT = 'oklch(0.82 0.16 75)';
 const SURFACE = 'oklch(0.13 0.005 250)';
@@ -74,7 +78,7 @@ let propertyPopover: HTMLElement | null = null;
 // Tracks the element/parent of the current gap selection so the overlay can
 // re-measure as Tailwind v4 JIT + Vite HMR finalize the new utility's CSS.
 let gapResizeObserver: ResizeObserver | null = null;
-let gapResizeRefresh: (() => void) | null = null;
+let _gapResizeRefresh: (() => void) | null = null;
 let activeWs: WebSocket | null = null;
 let retry = 0;
 
@@ -210,7 +214,7 @@ function tokensForValue(valueStr: string, hint: PropKind): CachedToken[] {
   return out;
 }
 
-function inspectElement(el: Element): PropEntry[] {
+function _inspectElement(el: Element): PropEntry[] {
   const cs = getComputedStyle(el);
   const props: PropEntry[] = [];
   function add(prop: string, value: string, hint: PropKind) {
@@ -349,13 +353,7 @@ function resolveGapSource(
     display === 'grid' ||
     display === 'inline-grid';
   const gapValue = axis === 'vertical' ? cs.rowGap : cs.columnGap;
-  if (
-    isFlexOrGrid &&
-    gapValue &&
-    gapValue !== 'normal' &&
-    gapValue !== '0px' &&
-    gapValue !== '0'
-  ) {
+  if (isFlexOrGrid && gapValue && gapValue !== 'normal' && gapValue !== '0px' && gapValue !== '0') {
     return {
       kind: 'parentGap',
       el: parent,
@@ -389,19 +387,22 @@ function findGapInChildren(parent: Element, x: number, y: number): GapTarget | n
     (a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top,
   );
   for (let i = 0; i < vSorted.length - 1; i++) {
-    const ar = vSorted[i]!.getBoundingClientRect();
-    const br = vSorted[i + 1]!.getBoundingClientRect();
+    const a = vSorted[i];
+    const b = vSorted[i + 1];
+    if (!a || !b) continue;
+    const ar = a.getBoundingClientRect();
+    const br = b.getBoundingClientRect();
     if (ar.bottom < br.top - 0.5) {
       const left = Math.min(ar.left, br.left);
       const right = Math.max(ar.right, br.right);
       if (x >= left && x <= right && y >= ar.bottom && y <= br.top) {
         return {
           parent,
-          before: vSorted[i]!,
-          after: vSorted[i + 1]!,
+          before: a,
+          after: b,
           axis: 'vertical',
           rect: { left, right, top: ar.bottom, bottom: br.top },
-          source: resolveGapSource(parent, vSorted[i]!, vSorted[i + 1]!, 'vertical'),
+          source: resolveGapSource(parent, a, b, 'vertical'),
         };
       }
     }
@@ -412,19 +413,22 @@ function findGapInChildren(parent: Element, x: number, y: number): GapTarget | n
     (a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left,
   );
   for (let i = 0; i < hSorted.length - 1; i++) {
-    const ar = hSorted[i]!.getBoundingClientRect();
-    const br = hSorted[i + 1]!.getBoundingClientRect();
+    const a = hSorted[i];
+    const b = hSorted[i + 1];
+    if (!a || !b) continue;
+    const ar = a.getBoundingClientRect();
+    const br = b.getBoundingClientRect();
     if (ar.right < br.left - 0.5) {
       const top = Math.min(ar.top, br.top);
       const bottom = Math.max(ar.bottom, br.bottom);
       if (x >= ar.right && x <= br.left && y >= top && y <= bottom) {
         return {
           parent,
-          before: hSorted[i]!,
-          after: hSorted[i + 1]!,
+          before: a,
+          after: b,
           axis: 'horizontal',
           rect: { left: ar.right, right: br.left, top, bottom },
-          source: resolveGapSource(parent, hSorted[i]!, hSorted[i + 1]!, 'horizontal'),
+          source: resolveGapSource(parent, a, b, 'horizontal'),
         };
       }
     }
@@ -682,7 +686,7 @@ function findCategoryMatches(el: Element): CategoryMatch[] {
     if (!found) continue;
     if (seenLabels.has(cat.label)) continue;
     seenLabels.add(cat.label);
-    const idx = scale.findIndex((t) => t.path.at(-1) === found!.scale);
+    const idx = scale.findIndex((t) => t.path.at(-1) === found?.scale);
     out.push({ cat, utility: found, scale, scaleIndex: idx });
   }
   // Collapse spacing rows that share the same source utility (e.g. `py-4`
@@ -695,7 +699,10 @@ function mergeSpacingShorthands(matches: CategoryMatch[]): CategoryMatch[] {
   const SPACING_MARGIN_LABELS = new Set(['Mar ↑', 'Mar →', 'Mar ↓', 'Mar ←']);
   const others: CategoryMatch[] = [];
   // Group spacing-side matches by their utility.full (e.g. `py-4`).
-  const groups = new Map<string, { match: CategoryMatch; labels: Set<string>; family: 'p' | 'm' }>();
+  const groups = new Map<
+    string,
+    { match: CategoryMatch; labels: Set<string>; family: 'p' | 'm' }
+  >();
   for (const m of matches) {
     const isPad = SPACING_PADDING_LABELS.has(m.cat.label);
     const isMar = SPACING_MARGIN_LABELS.has(m.cat.label);
@@ -1267,11 +1274,17 @@ function parseHex(value: string): string | null {
   probe.remove();
   const m = computed.match(/rgba?\(([^)]+)\)/);
   if (!m) return null;
-  const parts = m[1]!.split(/[\s,]+/).map(Number);
+  const parts = (m[1] ?? '').split(/[\s,]+/).map(Number);
   if (parts.length < 3) return null;
+  const r = parts[0];
+  const g = parts[1];
+  const b = parts[2];
+  if (r == null || g == null || b == null) return null;
   const hex = (n: number) =>
-    Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, '0');
-  return `#${hex(parts[0]!)}${hex(parts[1]!)}${hex(parts[2]!)}`;
+    Math.max(0, Math.min(255, Math.round(n)))
+      .toString(16)
+      .padStart(2, '0');
+  return `#${hex(r)}${hex(g)}${hex(b)}`;
 }
 
 // ── Stepper builders ───────────────────────────────────────────────────────
@@ -1284,9 +1297,7 @@ function initStepperState(prop: PropEntry): StepperState {
   const candidates = tokenCandidates(prop.hint, prop.tokens[0] ?? null);
   let index = -1;
   if (prop.tokens[0]) {
-    index = candidates.findIndex(
-      (c) => c.path.join('.') === prop.tokens[0]!.path.join('.'),
-    );
+    index = candidates.findIndex((c) => c.path.join('.') === prop.tokens[0]?.path.join('.'));
   }
   return { candidates, index };
 }
@@ -1429,8 +1440,8 @@ function openTokenDropdown(
     }
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
-      const focused = document.activeElement as HTMLElement | null;
-      const idx = items.findIndex((b) => b === focused);
+      const focused = document.activeElement;
+      const idx = focused ? items.indexOf(focused as HTMLButtonElement) : -1;
       const dir = e.key === 'ArrowDown' ? 1 : -1;
       const nextIdx = Math.max(0, Math.min(items.length - 1, idx + dir));
       items[nextIdx]?.focus();
@@ -1456,9 +1467,12 @@ function openTokenDropdown(
 }
 
 // ── Spacing card — 2 sub-columns × 4 compact rows (Top/Right/Bottom/Left) ──
-function buildSpacingRow(side: 'top' | 'right' | 'bottom' | 'left', maybeProp: PropEntry | undefined): HTMLElement {
+function buildSpacingRow(
+  side: 'top' | 'right' | 'bottom' | 'left',
+  maybeProp: PropEntry | undefined,
+): HTMLElement {
   const row = createEl('div', 'srow');
-  const letter = side[0]!.toUpperCase();
+  const letter = side[0]?.toUpperCase();
   row.appendChild(createEl('span', 'srow-letter', letter));
 
   if (!maybeProp) {
@@ -1478,7 +1492,7 @@ function buildSpacingRow(side: 'top' | 'right' | 'bottom' | 'left', maybeProp: P
   value.setAttribute('aria-label', prop.prop);
   if (value.value === '0') value.classList.add('is-zero');
   if (prop.tokens.length) {
-    value.title = `${prop.prop}: ${prop.tokens[0]!.path.join('.')}`;
+    value.title = `${prop.prop}: ${prop.tokens[0]?.path.join('.')}`;
   } else {
     value.title = prop.prop;
   }
@@ -1536,8 +1550,9 @@ function buildSpacingRow(side: 'top' | 'right' | 'bottom' | 'left', maybeProp: P
     }
   });
   value.addEventListener('change', () => {
-    if (!prop.tokens.length) return;
-    emitTokenUpdate(prop.tokens[0]!.path, value.value);
+    const t = prop.tokens[0];
+    if (!t) return;
+    emitTokenUpdate(t.path, value.value);
   });
 
   row.appendChild(value);
@@ -1635,8 +1650,11 @@ function buildColorBlock(prop: PropEntry): HTMLElement {
   colorInput.addEventListener('input', () => {
     swatch.style.background = colorInput.value;
     label.title = colorInput.value;
-    swatchRefs.forEach((s) => s.classList.remove('is-current'));
-    if (prop.tokens.length) emitTokenUpdate(prop.tokens[0]!.path, colorInput.value);
+    swatchRefs.forEach((s) => {
+      s.classList.remove('is-current');
+    });
+    const t = prop.tokens[0];
+    if (t) emitTokenUpdate(t.path, colorInput.value);
   });
 
   stepper.appendChild(name);
@@ -1669,7 +1687,9 @@ function buildColorBlock(prop: PropEntry): HTMLElement {
   const originalApply = applyIndex;
   function applyAndSync(idx: number) {
     originalApply(idx);
-    swatchRefs.forEach((s, i) => s.classList.toggle('is-current', i === idx));
+    swatchRefs.forEach((s, i) => {
+      s.classList.toggle('is-current', i === idx);
+    });
   }
   // Reassign listeners that reference applyIndex
   prev.removeEventListener('click', () => {});
@@ -1788,7 +1808,7 @@ function buildEffectsCard(props: PropEntry[]): HTMLElement {
 }
 
 // ── Panel ──────────────────────────────────────────────────────────────────
-function buildEditPanel(el: Element, props: PropEntry[]): HTMLElement {
+function _buildEditPanel(el: Element, props: PropEntry[]): HTMLElement {
   const panel = createEl('div');
   panel.id = PANEL_ID;
 
@@ -1839,7 +1859,7 @@ function buildEditPanel(el: Element, props: PropEntry[]): HTMLElement {
   return panel;
 }
 
-function buildGapEditPanel(gap: GapTarget): HTMLElement {
+function _buildGapEditPanel(gap: GapTarget): HTMLElement {
   const panel = createEl('div');
   panel.id = PANEL_ID;
 
@@ -1941,7 +1961,7 @@ function buildGapSpacingCard(gap: GapTarget): HTMLElement {
     if (nextIdx < 0 || nextIdx >= scale.length) return;
     if (nextIdx === index) return;
     const target = scale[nextIdx]!;
-    const newClass = `${utility!.prefix}${target.path[1]}`;
+    const newClass = `${utility?.prefix}${target.path[1]}`;
     // Optimistic swap on the live DOM so spacing updates immediately, before
     // the server-side file write + Vite HMR catches up.
     gap.source.el.classList.remove(currentClass);
@@ -1950,9 +1970,9 @@ function buildGapSpacingCard(gap: GapTarget): HTMLElement {
       activeWs.send(
         JSON.stringify({
           type: 'swap-utility',
-          file: loc!.file,
-          line: loc!.line,
-          col: loc!.col,
+          file: loc?.file,
+          line: loc?.line,
+          col: loc?.col,
           oldClass: currentClass,
           newClass,
         }),
@@ -2042,7 +2062,7 @@ function attachDrag(panel: HTMLElement, handle: HTMLElement): void {
 let savedPaddingBottom: string | null = null;
 let panelResizeObserver: ResizeObserver | null = null;
 
-function reserveBottomSpace(panel: HTMLElement): void {
+function _reserveBottomSpace(panel: HTMLElement): void {
   if (savedPaddingBottom === null) {
     savedPaddingBottom = document.body.style.paddingBottom;
   }
@@ -2123,11 +2143,13 @@ function showPropertyPopover(el: Element): void {
     index: number;
   };
   const states: RowState[] = [];
-  let focusedIdx = -1;
+  let _focusedIdx = -1;
 
   function focusRow(i: number) {
-    focusedIdx = i;
-    states.forEach((s, idx) => s.row.classList.toggle('is-focused', idx === i));
+    _focusedIdx = i;
+    states.forEach((s, idx) => {
+      s.row.classList.toggle('is-focused', idx === i);
+    });
     activeStepperRef = i >= 0 ? { step: (delta) => stepRow(states[i]!, delta) } : null;
     // Hide the selection outline while a row is focused so the user can see
     // the live edit clearly. Restore when no row is focused.
@@ -2154,9 +2176,9 @@ function showPropertyPopover(el: Element): void {
       activeWs.send(
         JSON.stringify({
           type: 'swap-utility',
-          file: loc!.file,
-          line: loc!.line,
-          col: loc!.col,
+          file: loc?.file,
+          line: loc?.line,
+          col: loc?.col,
           oldClass: s.currentClass,
           newClass,
         }),
@@ -2274,7 +2296,7 @@ function setupGapStepper(gap: GapTarget): void {
       placeGapLabel(fresh, labelText());
     }
   };
-  gapResizeRefresh = refresh;
+  _gapResizeRefresh = refresh;
   attachGapResizeObserver(gap, refresh);
 
   function step(delta: number) {
@@ -2286,16 +2308,16 @@ function setupGapStepper(gap: GapTarget): void {
       if (nextIdx < 0 || nextIdx >= scale.length) return;
     }
     const target = scale[nextIdx]!;
-    const newClass = `${utility!.prefix}${target.path[1]}`;
+    const newClass = `${utility?.prefix}${target.path[1]}`;
     gap.source.el.classList.remove(currentClass);
     gap.source.el.classList.add(newClass);
     if (activeWs && activeWs.readyState === activeWs.OPEN) {
       activeWs.send(
         JSON.stringify({
           type: 'swap-utility',
-          file: loc!.file,
-          line: loc!.line,
-          col: loc!.col,
+          file: loc?.file,
+          line: loc?.line,
+          col: loc?.col,
           oldClass: currentClass,
           newClass,
         }),
@@ -2325,7 +2347,7 @@ function attachGapResizeObserver(gap: GapTarget, onResize: () => void): void {
 function detachGapResizeObserver(): void {
   gapResizeObserver?.disconnect();
   gapResizeObserver = null;
-  gapResizeRefresh = null;
+  _gapResizeRefresh = null;
 }
 
 function removeEditPanel(): void {

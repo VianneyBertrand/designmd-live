@@ -270,7 +270,7 @@ function swapUtilityAtLoc(
   const lines = content.split('\n');
   if (line < 1 || line > lines.length) return null;
   let offset = 0;
-  for (let i = 0; i < line - 1; i++) offset += lines[i]!.length + 1;
+  for (let i = 0; i < line - 1; i++) offset += (lines[i] ?? '').length + 1;
   offset += Math.max(0, col);
 
   let i = offset;

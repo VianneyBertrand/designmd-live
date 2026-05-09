@@ -131,11 +131,7 @@ function SidebarIcon({ collapsed }: { collapsed: boolean }) {
       aria-hidden="true"
     >
       <rect x="3" y="4" width="14" height="12" rx="2" />
-      {collapsed ? (
-        <line x1="13" y1="4" x2="13" y2="16" />
-      ) : (
-        <line x1="7" y1="4" x2="7" y2="16" />
-      )}
+      {collapsed ? <line x1="13" y1="4" x2="13" y2="16" /> : <line x1="7" y1="4" x2="7" y2="16" />}
     </svg>
   );
 }
